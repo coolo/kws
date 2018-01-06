@@ -63,7 +63,7 @@ def run_graph(wav_path, output_layer_name):
     softmax_tensor = sess.graph.get_tensor_by_name(output_layer_name)
 
     wav_data=np.array(read(wav_path)[1],dtype=float)
-    mels=logfbank(wav_data, 16000, lowfreq=125.0,highfreq=3800.0,nfilt=40)[:98]
+    mels=logfbank(wav_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=10,nfft=1024, winlen=0.040,winstep=0.025)[:39]
     np.set_printoptions(threshold=np.inf)
     input = {'fingerprint_4d:0': np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1))}
     predictions, = sess.run(softmax_tensor, input)
