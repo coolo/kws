@@ -54,7 +54,7 @@ FLAGS = None
 
 def create_inference_graph(wanted_words, sample_rate, clip_duration_ms,
                            clip_stride_ms, window_size_ms, window_stride_ms,
-                           dct_coefficient_count, model_architecture):
+                           dct_coefficient_count, model_architecture, model_size_info):
   """Creates an audio model with the nodes needed for inference.
 
   Uses the supplied arguments to create a model, and inserts the input and
@@ -83,7 +83,7 @@ def create_inference_graph(wanted_words, sample_rate, clip_duration_ms,
       tf.float32, [None, input_time_size, input_frequency_size, 1], name='fingerprint_4d')
 
   logits = models.create_model(
-      fingerprint_input, model_settings, model_architecture, is_training=False,
+      fingerprint_input, model_settings, model_architecture, model_size_info, is_training=False,
       runtime_settings=runtime_settings)
 
   # Create an output to use for inference.
@@ -97,7 +97,7 @@ def main(_):
   create_inference_graph(FLAGS.wanted_words, FLAGS.sample_rate,
                          FLAGS.clip_duration_ms, FLAGS.clip_stride_ms,
                          FLAGS.window_size_ms, FLAGS.window_stride_ms,
-                         FLAGS.dct_coefficient_count, FLAGS.model_architecture)
+                         FLAGS.dct_coefficient_count, FLAGS.model_architecture, FLAGS.model_size_info)
   models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
 
   # Turn all the variables into inline constants inside the graph and save it.
@@ -158,6 +158,12 @@ if __name__ == '__main__':
       type=str,
       default='yes,no,up,down,left,right,on,off,stop,go',
       help='Words to use (others will be added to an unknown label)',)
+  parser.add_argument(
+      '--model_size_info',
+      type=int,
+      nargs="+",
+      default=[128,128,128],
+      help='Model dimensions - different for various models')
   parser.add_argument(
       '--output_file', type=str, help='Where to save the frozen graph.')
   FLAGS, unparsed = parser.parse_known_args()
