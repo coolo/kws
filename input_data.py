@@ -181,7 +181,13 @@ class AudioProcessor(object):
         wav_data=np.array(read(wav_path)[1],dtype=float)
         #print(wav_path, len(wav_data))
         #wav_data=np.pad(wav_data, ((0,15000)), 'constant')
-        mel=logfbank(wav_data, 16000, lowfreq=125.0,highfreq=3800.0,nfilt=model_settings['dct_coefficient_count'], winlen=model_settings['window_size_ms']/1000,winstep=model_settings['window_stride_ms']/1000)
+        nfft=512
+        while nfft < model_settings['window_size_samples']:
+            nfft *= 2
+        mel=logfbank(wav_data, 16000, lowfreq=50.0,highfreq=4200.0,nfilt=model_settings['dct_coefficient_count'],
+                     winlen=model_settings['window_size_ms']/1000,
+                     winstep=model_settings['window_stride_ms']/1000,
+                     nfft=nfft)
         #print(mel.shape, model_settings)
         all_files.append({'label': label, 'file': wav_path, 'mels': mel[:model_settings['spectrogram_length']]})
     # Make sure the ordering is random.
