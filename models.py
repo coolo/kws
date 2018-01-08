@@ -810,6 +810,8 @@ def create_lstm_model(fingerprint_input, model_settings, model_size_info,
     with tf.variable_scope("lstm"):
       lstmcell = tf.contrib.rnn.LSTMCell(LSTM_units, use_peepholes=True,
                    num_proj=projection_units)
+      if is_training:
+         lstmcell = tf.nn.rnn_cell.DropoutWrapper(lstmcell, output_keep_prob=dropout_prob)
       _, last = tf.nn.dynamic_rnn(cell=lstmcell, inputs=fingerprint_4d,
                   dtype=tf.float32)
       flow = last[-1]
