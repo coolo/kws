@@ -36,9 +36,20 @@ import sys
 import numpy as np
 from scipy.io.wavfile import read
 import tensorflow as tf
+import glob
 from python_speech_features import logfbank
 
 FLAGS = None
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 def load_graph(filename):
   """Unpersists graph from file as default graph."""
@@ -53,7 +64,7 @@ def load_labels(filename):
   return [line.rstrip() for line in tf.gfile.GFile(filename)]
 
 
-def run_graph(wav_path, output_layer_name):
+def run_graph(wav_glob, output_layer_name):
   """Runs the audio data through the graph and prints predictions."""
   with tf.Session() as sess:
     # Feed the audio data as input to the graph.
@@ -62,12 +73,17 @@ def run_graph(wav_path, output_layer_name):
     #   predictions per class
     softmax_tensor = sess.graph.get_tensor_by_name(output_layer_name)
 
-    wav_data=np.array(read(wav_path)[1],dtype=float)
-    mels=logfbank(wav_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=10,nfft=1024, winlen=0.040,winstep=0.025)[:39]
-    np.set_printoptions(threshold=np.inf)
-    input = {'fingerprint_4d:0': np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1))}
-    predictions, = sess.run(softmax_tensor, input)
-    print(predictions)
+    list = glob.glob(wav_glob)
+    for wav_path in glob.glob(wav_glob):
+       wav_data=np.array(read(wav_path)[1],dtype=float)
+       nfft=512
+       while nfft < 640:
+          nfft *= 2
+       mels=logfbank(wav_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=10,winlen=0.040, winstep=0.020, nfft=nfft)[:49]
+       np.set_printoptions(threshold=np.inf)
+       input = {'fingerprint_4d:0': np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1))}
+       predictions, = sess.run(softmax_tensor, input)
+       print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, wav_path, predictions, bcolors.ENDC)
     return 0
 
 

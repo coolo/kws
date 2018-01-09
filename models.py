@@ -958,7 +958,7 @@ def create_gru_model(fingerprint_input, model_settings, model_size_info,
     return logits
 
 
-def create_crnn_model(fingerprint_input, model_settings,
+def create_crnn_model(fingerprint_4d, model_settings,
                                   model_size_info, is_training):
   """Builds a model with convolutional recurrent networks with GRUs
   Based on the model definition in https://arxiv.org/abs/1703.05390
@@ -972,8 +972,6 @@ def create_crnn_model(fingerprint_input, model_settings,
     dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
   input_frequency_size = model_settings['dct_coefficient_count']
   input_time_size = model_settings['spectrogram_length']
-  fingerprint_4d = tf.reshape(fingerprint_input,
-                              [-1, input_time_size, input_frequency_size, 1])
 
   layer_norm = False
   bidirectional = False
@@ -1061,7 +1059,7 @@ def create_crnn_model(fingerprint_input, model_settings,
   else:
     return final_fc
 
-def create_ds_cnn_model(fingerprint_input, model_settings, model_size_info,
+def create_ds_cnn_model(fingerprint_4d, model_settings, model_size_info,
                           is_training):
   """Builds a model with depthwise separable convolutional neural network
   Model definition is based on https://arxiv.org/abs/1704.04861 and
@@ -1119,8 +1117,6 @@ def create_ds_cnn_model(fingerprint_input, model_settings, model_size_info,
   label_count = model_settings['label_count']
   input_frequency_size = model_settings['dct_coefficient_count']
   input_time_size = model_settings['spectrogram_length']
-  fingerprint_4d = tf.reshape(fingerprint_input,
-                              [-1, input_time_size, input_frequency_size, 1])
 
   t_dim = input_time_size
   f_dim = input_frequency_size
