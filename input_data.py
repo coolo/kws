@@ -346,7 +346,7 @@ class AudioProcessor(object):
       sample_count = max(0, min(how_many, len(candidates) - offset))
     # Data and labels will be populated and returned.
     data = np.zeros((sample_count, model_settings['spectrogram_length'], model_settings['dct_coefficient_count'], 1))
-    labels = np.zeros(sample_count)
+    labels = np.zeros((sample_count,2))
     desired_samples = model_settings['desired_samples']
     pick_deterministically = (mode != 'training')
     # Use the processing graph we created earlier to repeatedly to generate the
@@ -361,7 +361,7 @@ class AudioProcessor(object):
       #print(model_settings, sample['mels'].shape)
       # Run the graph to produce the output audio.
       data[i] = np.reshape(sample['mels'][:model_settings['spectrogram_length']], (model_settings['spectrogram_length'], model_settings['dct_coefficient_count'], 1))
-      labels[i] = sample['label']
+      labels[i][sample['label']] = 1
     return data, labels
 
   def get_unprocessed_data(self, how_many, model_settings, mode):

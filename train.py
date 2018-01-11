@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-r"""Simple speech recognition to spot a limited number of keywords.
+#
+# Modifications Copyright 2017 Arm Inc. All Rights Reserved.           
+# Added model dimensions as command line argument and changed to Adam optimizer
+#
+#
+"""Simple speech recognition to spot a limited number of keywords.
 
 This is a self-contained example script that will train a very basic audio
 recognition model in TensorFlow. It downloads the necessary training data and
@@ -81,6 +86,7 @@ import tensorflow as tf
 import input_data
 import models
 from tensorflow.python.platform import gfile
+from tensorflow.contrib import slim as slim 
 
 FLAGS = None
 
@@ -136,7 +142,7 @@ def main(_):
 
   # Define loss and optimizer
   ground_truth_input = tf.placeholder(
-      tf.int64, [None], name='groundtruth_input')
+      tf.float32, [None, 2], name='groundtruth_input')
 
   # Optionally we can add runtime checks to spot when NaNs or other symptoms of
   # numerical errors start occurring during training.
@@ -147,18 +153,25 @@ def main(_):
 
   # Create the back propagation and training evaluation machinery in the graph.
   with tf.name_scope('cross_entropy'):
-    cross_entropy_mean = tf.losses.sparse_softmax_cross_entropy(
-        labels=ground_truth_input, logits=logits)
+    cross_entropy_mean = tf.reduce_mean(
+        tf.nn.softmax_cross_entropy_with_logits(
+            labels=ground_truth_input, logits=logits))
   tf.summary.scalar('cross_entropy', cross_entropy_mean)
-  with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
+
+  update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+  with tf.name_scope('train'), tf.control_dependencies(update_ops), tf.control_dependencies(control_dependencies):
     learning_rate_input = tf.placeholder(
         tf.float32, [], name='learning_rate_input')
-    train_step = tf.train.GradientDescentOptimizer(
-        learning_rate_input).minimize(cross_entropy_mean)
+    train_op = tf.train.AdamOptimizer(
+        learning_rate_input)
+    train_step = slim.learning.create_train_op(cross_entropy_mean, train_op)
+#    train_step = tf.train.GradientDescentOptimizer(
+#        learning_rate_input).minimize(cross_entropy_mean)
   predicted_indices = tf.argmax(logits, 1)
-  correct_prediction = tf.equal(predicted_indices, ground_truth_input)
+  expected_indices = tf.argmax(ground_truth_input, 1)
+  correct_prediction = tf.equal(predicted_indices, expected_indices)
   confusion_matrix = tf.confusion_matrix(
-      ground_truth_input, predicted_indices, num_classes=label_count)
+      expected_indices, predicted_indices, num_classes=label_count)
   evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
   tf.summary.scalar('accuracy', evaluation_step)
 
@@ -175,6 +188,11 @@ def main(_):
 
   tf.global_variables_initializer().run()
 
+  # Parameter counts
+  params = tf.trainable_variables()
+  num_params = sum(map(lambda t: np.prod(tf.shape(t.value()).eval()), params))
+  print('Total number of Parameters: ', num_params)
+
   start_step = 1
 
   if FLAGS.start_checkpoint:
@@ -188,6 +206,7 @@ def main(_):
                        FLAGS.model_architecture + '.pbtxt')
 
   # Training loop.
+  best_accuracy = 0
   training_steps_max = np.sum(training_steps_list)
   for training_step in xrange(start_step, training_steps_max + 1):
     # Figure out what the current learning rate is.
@@ -210,10 +229,10 @@ def main(_):
             fingerprint_input: train_fingerprints,
             ground_truth_input: train_ground_truth,
             learning_rate_input: learning_rate_value,
-            dropout_prob: 0.5
+            dropout_prob: 1.0
         })
     train_writer.add_summary(train_summary, training_step)
-    tf.logging.info('Step #%d: rate %f, accuracy %.1f%%, cross entropy %f' %
+    tf.logging.info('Step #%d: rate %f, accuracy %.2f%%, cross entropy %f' %
                     (training_step, learning_rate_value, train_accuracy * 100,
                      cross_entropy_value))
     is_last_step = (training_step == training_steps_max)
@@ -241,16 +260,17 @@ def main(_):
         else:
           total_conf_matrix += conf_matrix
       tf.logging.info('Confusion Matrix:\n %s' % (total_conf_matrix))
-      tf.logging.info('Step %d: Validation accuracy = %.1f%% (N=%d)' %
+      tf.logging.info('Step %d: Validation accuracy = %.2f%% (N=%d)' %
                       (training_step, total_accuracy * 100, set_size))
 
-    # Save the model checkpoint periodically.
-    if (training_step % FLAGS.save_step_interval == 0 or
-        training_step == training_steps_max):
-      checkpoint_path = os.path.join(FLAGS.train_dir,
-                                     FLAGS.model_architecture + '.ckpt')
-      tf.logging.info('Saving to "%s-%d"', checkpoint_path, training_step)
-      saver.save(sess, checkpoint_path, global_step=training_step)
+      # Save the model checkpoint when validation accuracy improves
+      if total_accuracy > best_accuracy:
+        best_accuracy = total_accuracy
+        checkpoint_path = os.path.join(FLAGS.train_dir, 'best',
+                                       FLAGS.model_architecture + '_'+ str(int(best_accuracy*10000)) + '.ckpt')
+        tf.logging.info('Saving best model to "%s-%d"', checkpoint_path, training_step)
+        saver.save(sess, checkpoint_path, global_step=training_step)
+      tf.logging.info('So far the best validation accuracy is %.2f%%' % (best_accuracy*100))
 
   set_size = audio_processor.set_size('testing')
   tf.logging.info('set_size=%d', set_size)
@@ -273,7 +293,7 @@ def main(_):
     else:
       total_conf_matrix += conf_matrix
   tf.logging.info('Confusion Matrix:\n %s' % (total_conf_matrix))
-  tf.logging.info('Final test accuracy = %.1f%% (N=%d)' % (total_accuracy * 100,
+  tf.logging.info('Final test accuracy = %.2f%% (N=%d)' % (total_accuracy * 100,
                                                            set_size))
 
 
@@ -406,19 +426,19 @@ if __name__ == '__main__':
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default='conv',
+      default='dnn',
       help='What model architecture to use')
-  parser.add_argument(
-      '--check_nans',
-      type=bool,
-      default=False,
-      help='Whether to check for invalid numbers during processing')
   parser.add_argument(
       '--model_size_info',
       type=int,
       nargs="+",
       default=[128,128,128],
       help='Model dimensions - different for various models')
+  parser.add_argument(
+      '--check_nans',
+      type=bool,
+      default=False,
+      help='Whether to check for invalid numbers during processing')
 
   FLAGS, unparsed = parser.parse_known_args()
   tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
