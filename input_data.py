@@ -26,12 +26,13 @@ import random
 import re
 import sys
 import tarfile
+import struct
 
 import numpy as np
 from six.moves import urllib
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
-from scipy.io.wavfile import read
+import wave
 
 from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
 from tensorflow.python.ops import io_ops
@@ -178,18 +179,24 @@ class AudioProcessor(object):
     all_files = []
     np.set_printoptions(threshold=np.inf)
     for wav_path in gfile.Glob(search_path):
-        wav_data=np.array(read(wav_path)[1],dtype=float)
+        w = wave.open(wav_path)
+        astr = w.readframes(w.getframerate())
+        # convert binary chunks to short 
+        a = struct.unpack("%ih" % (w.getframerate()* w.getnchannels()), astr)
+        a = [float(val) / pow(2, 15) for val in a]
+        wav_data=np.array(a,dtype=float)
         #print(wav_path, len(wav_data))
         #wav_data=np.pad(wav_data, ((0,15000)), 'constant')
         nfft=512
         while nfft < model_settings['window_size_samples']:
             nfft *= 2
-        mel=logfbank(wav_data, 16000, lowfreq=50.0,highfreq=4200.0,nfilt=model_settings['dct_coefficient_count'],
+        mel=logfbank(wav_data, w.getframerate(), lowfreq=50.0,highfreq=4200.0,nfilt=model_settings['dct_coefficient_count'],
                      winlen=model_settings['window_size_ms']/1000,
                      winstep=model_settings['window_stride_ms']/1000,
                      nfft=nfft)
         #print(mel.shape, model_settings)
         all_files.append({'label': label, 'file': wav_path, 'mels': mel[:model_settings['spectrogram_length']]})
+        w.close()
     # Make sure the ordering is random.
     random.shuffle(all_files)
 
