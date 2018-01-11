@@ -34,9 +34,10 @@ from __future__ import print_function
 import argparse
 import sys
 import numpy as np
-from scipy.io.wavfile import read
 import tensorflow as tf
 import glob
+import wave
+import struct
 from python_speech_features import logfbank
 
 FLAGS = None
@@ -75,11 +76,16 @@ def run_graph(wav_glob, output_layer_name):
 
     list = glob.glob(wav_glob)
     for wav_path in glob.glob(wav_glob):
-       wav_data=np.array(read(wav_path)[1],dtype=float)
+       w = wave.open(wav_path)
+       astr = w.readframes(w.getframerate())
+       # convert binary chunks to short 
+       a = struct.unpack("%ih" % (w.getframerate()* w.getnchannels()), astr)
+       a = [float(val) / pow(2, 15) for val in a]
+       wav_data=np.array(a,dtype=float)
        nfft=512
        while nfft < 640:
           nfft *= 2
-       mels=logfbank(wav_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=10,winlen=0.040, winstep=0.020, nfft=nfft)[:49]
+       mels=logfbank(wav_data, w.getframerate(), lowfreq=50.0, highfreq=4200.0,nfilt=40,winlen=0.040, winstep=0.025, nfft=nfft)[:39]
        np.set_printoptions(threshold=np.inf)
        input = {'fingerprint_4d:0': np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1))}
        predictions, = sess.run(softmax_tensor, input)
