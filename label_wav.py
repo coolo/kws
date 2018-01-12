@@ -82,9 +82,7 @@ def run_graph(wav_glob, output_layer_name):
        a = struct.unpack("%ih" % (w.getframerate()* w.getnchannels()), astr)
        a = [float(val) / pow(2, 15) for val in a]
        wav_data=np.array(a,dtype=float)
-       nfft=512
-       while nfft < 640:
-          nfft *= 2
+       nfft=1024
        mels=logfbank(wav_data, w.getframerate(), lowfreq=50.0, highfreq=4200.0,nfilt=40,winlen=0.040, winstep=0.025, nfft=nfft)[:39]
        np.set_printoptions(threshold=np.inf)
        input = {'fingerprint_4d:0': np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1))}

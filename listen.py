@@ -25,6 +25,7 @@ import time
 import wave
 import tensorflow as tf
 import numpy as np
+import struct
 from python_speech_features import logfbank
 import audioop
 import alsaaudio
@@ -78,7 +79,7 @@ class Recorder(threading.Thread):
   def run(self):
     """Reads data from arecord and passes to processors."""
 
-    logger.info('%1 started recording'.format(time.time()))
+    logger.info('{} started recording'.format(time.time()))
 
     while True:
       l, input_data = self.inp.read()
@@ -141,7 +142,7 @@ class Fetcher(threading.Thread):
       rate = self.processor.add_data(chunk)
       #print(time.time(), 'handle', rate, time.time() - bt)
       if rate:
-        os.system('aplay jaaa.wav')
+        os.system('aplay jaaa.wav && curl http://localhost:3838')
         with open('out-%.3f-%.2f.raw' % (rate, time.time()), 'wb') as f:
           f.write(chunk)
       #for p in self._processors:
@@ -193,85 +194,28 @@ class RecognizeCommands(object):
     """Process audio data."""
     if not data_bytes:
       return
-    data = np.frombuffer(data_bytes, dtype=np.int16)
-    current_time_ms = int(round(time.time() * 1000))
-    number_read = len(data)
-    new_recording_offset = self.recording_offset_ + number_read
-    second_copy_length = max(0, new_recording_offset - self.recording_length_)
-    first_copy_length = number_read - second_copy_length
-    self.recording_buffer_[self.recording_offset_:(
-        self.recording_offset_ + first_copy_length
-    )] = data[:first_copy_length].astype(np.int16)
-    self.recording_buffer_[:second_copy_length] = data[
-        first_copy_length:].astype(np.int16)
-    self.recording_offset_ = new_recording_offset % self.recording_length_
-    input_data = np.concatenate(
-        (self.recording_buffer_[self.recording_offset_:],
-         self.recording_buffer_[:self.recording_offset_]))
-    input_data = input_data.reshape([self.recording_length_, 1])
     softmax_tensor = self.sess_.graph.get_tensor_by_name(self.output_name_)
 
+    # convert binary chunks to short
+    a = struct.unpack("%ih" % 16000, data_bytes)
+    a = [float(val) / pow(2, 15) for val in a]
+    input_data=np.array(a,dtype=float)
+
     bt = time.time()
-    mels=logfbank(input_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=10,nfft=1024, winlen=0.040,winstep=0.025)[:39]
+    mels=logfbank(input_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=40,nfft=1024, winlen=0.040,winstep=0.025)[:39]
     input = {'fingerprint_4d:0': np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1))}
-    #print('logfbank', time.time() - bt)
+    #print('logfbank', mels.shape, time.time() - bt)
     bt = time.time()
 
     predictions, = self.sess_.run(softmax_tensor, input)
-    #print('pred', predictions, time.time() - bt)
-    if self.previous_results_ and current_time_ms < self.previous_results_[0].time(
-    ):
-      raise RuntimeException(
-          'You must feed results in increasing time order, but received a '
-          'timestamp of ', current_time_ms,
-          ' that was earlier than the previous one of ',
-          self.previous_results_[0].time())
+    print('{} Confidence {:3}'.format(time.time(), int(100*predictions[1])))
 
-    self.previous_results_.append(
-        RecognizePredictions(current_time_ms, predictions))
-    # Prune any earlier results that are too old for the averaging window.
-    time_limit = current_time_ms - self.average_window_duration_ms_
-    while self.previous_results_[0].time() < time_limit:
-      self.previous_results_.popleft()
-    # If there are too few results, assume the result will be unreliable and
-    # bail.
-    how_many_results = len(self.previous_results_)
-    earliest_time = self.previous_results_[0].time()
-    samples_duration = current_time_ms - earliest_time
-    if how_many_results < self.minimum_count_ or samples_duration < (
-        self.average_window_duration_ms_ / 4):
-      return
+    current_time_ms = int(round(time.time() * 1000))
+    time_since_last_top = current_time_ms - self.previous_top_label_time_
 
-    # Calculate the average score across all the results in the window.
-    average_scores = np.zeros([2])
-    for result in self.previous_results_:
-      average_scores += result.predictions() * (1.0 / how_many_results)
-
-    # Sort the averaged results in descending score order.
-    top_result = average_scores.argsort()[-1:][::-1]
-
-    # See if the latest top score is enough to trigger a detection.
-    current_top_index = top_result[0]
-    current_top_label = 'unknown'
-    if current_top_index == 1:
-      current_top_label = 'baerchen'
-    current_top_score = average_scores[current_top_index]
-
-    print('Confidence {:3}'.format(int(100*average_scores[1])))
-
-    # If we've recently had another label trigger, assume one that occurs too
-    # soon afterwards is a bad result.
-    if self.previous_top_label_ == '_silence_' or self.previous_top_label_time_ == 0:
-      time_since_last_top = 1000000
-    else:
-      time_since_last_top = current_time_ms - self.previous_top_label_time_
-
-    if average_scores[1] > self.detection_threshold_ and (time_since_last_top > self.suppression_ms_ or average_scores[1] > self.previous_top_score):
-      self.previous_top_label_ = current_top_label
+    if predictions[1] > self.detection_threshold_ and time_since_last_top > self.suppression_ms_:
       self.previous_top_label_time_ = current_time_ms
-      self.previous_top_score = average_scores[1] 
-      logger.info('baerchen %.2f' % average_scores[1])
-      return average_scores[1]
+      return predictions[1]
     else:
       return 0
 
@@ -318,7 +262,7 @@ def main():
   parser.add_argument(
       '--average_window_duration_ms',
       type=int,
-      default='500',
+      default='300',
       help='How long to average results over.')
   parser.add_argument(
       '--detection_threshold',
