@@ -87,7 +87,7 @@ def run_graph(wav_glob, output_layer_name):
        np.set_printoptions(threshold=np.inf)
        input = {'fingerprint_4d:0': np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1))}
        predictions, = sess.run(softmax_tensor, input)
-       print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, wav_path, predictions, bcolors.ENDC)
+       print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, wav_path, int(predictions[1] * 100 + 0.5), bcolors.ENDC)
     return 0
 
 
