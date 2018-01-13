@@ -92,7 +92,7 @@ class Recorder(threading.Thread):
 
     while True:
       if not 'STREAM' in os.environ:
-          l, input_data = self.inp.read(12000)
+          l, input_data = self.inp.read()
       else:
           input_data = self.inp.read(int(self._sample_rate_hz * self._channels * self._bytes_per_sample * 0.1))
       if not input_data:
@@ -118,7 +118,8 @@ class Recorder(threading.Thread):
     self.unscaled_data = passing
     self.lock.release()
     passing, self._conv_state = audioop.ratecv(passing, 2, self._channels, self._sample_rate_hz, 16000, self._conv_state)
-    passing = audioop.tomono(passing, 2, .5, .5)
+    if self._channels > 1:
+       passing = audioop.tomono(passing, 2, .5, .5)
     return passing
 
   def __exit__(self, *args):
@@ -148,7 +149,6 @@ class Fetcher(threading.Thread):
   def run(self):
     while True:
       chunk = self.recorder.take_last_chunk(1)
-      #print('taken', time.time(), len(chunk))
       if not len(chunk):
          time.sleep(0.1)
          continue
@@ -213,10 +213,7 @@ class RecognizeCommands(object):
       return
     softmax_tensor = self.sess_.graph.get_tensor_by_name(self.output_name_)
 
-    # convert binary chunks to short
-    a = struct.unpack("%ih" % 16000, data_bytes)
-    pow15 = pow(2,15)
-    input_data = np.frombuffer(data_bytes, dtype='i2')/pow15
+    input_data = np.frombuffer(data_bytes, dtype='i2')/pow(2,15)
 
     #bt = time.time()
     mels=logfbank(input_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=40,nfft=1024, winlen=0.040,winstep=0.025)[:39]
