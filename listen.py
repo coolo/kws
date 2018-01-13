@@ -26,6 +26,7 @@ import wave
 import tensorflow as tf
 import numpy as np
 import struct
+import subprocess
 from python_speech_features import logfbank
 import audioop
 import alsaaudio
@@ -59,19 +60,26 @@ class Recorder(threading.Thread):
 
     super(Recorder, self).__init__()
 
-    self.inp = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, device=input_device)
-    self.inp.setchannels(1)
-    self.inp.setrate(sample_rate_hz)
-    self.inp.setformat(alsaaudio.PCM_FORMAT_S16_LE)
+    self._channels = 1
+    self._sample_rate_hz = sample_rate_hz
+    if not 'STREAM' in os.environ:
+       self.inp = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, device=input_device)
+       self.inp.setchannels(self._channels)
+       self.inp.setrate(sample_rate_hz)
+       self.inp.setformat(alsaaudio.PCM_FORMAT_S16_LE)
 
-    # The period size controls the internal number of frames per period.
-    # The significance of this parameter is documented in the ALSA api.
-    # For our purposes, it is suficcient to know that reads from the device
-    # will return this many frames. Each frame being 2 bytes long.
-    self.inp.setperiodsize(int(sample_rate_hz * 0.05))
+       # The period size controls the internal number of frames per period.
+       # The significance of this parameter is documented in the ALSA api.
+       # For our purposes, it is suficcient to know that reads from the device
+       # will return this many frames. Each frame being 2 bytes long.
+       self.inp.setperiodsize(int(sample_rate_hz * 0.05))
+    else:
+       p = subprocess.Popen(['mpg123', '-S', '-@', os.environ['STREAM']], shell=False,  stdout=subprocess.PIPE, close_fds=True)
+       self.inp = p.stdout
+       self._channels = 2
+       self._sample_rate_hz = 44100
 
     self._conv_state = None
-    self._sample_rate_hz = sample_rate_hz
     self.lock = threading.Lock()
 
     self.unscaled_data = b''
@@ -82,7 +90,10 @@ class Recorder(threading.Thread):
     logger.info('{} started recording'.format(time.time()))
 
     while True:
-      l, input_data = self.inp.read()
+      if not 'STREAM' in os.environ:
+          l, input_data = self.inp.read()
+      else:
+          input_data = self.inp.read(12000)
       if not input_data:
         break
 
@@ -98,14 +109,15 @@ class Recorder(threading.Thread):
       os._exit(1)  # pylint: disable=protected-access
 
   def take_last_chunk(self, seconds):
-    required_bytes = int(seconds * self._sample_rate_hz * 2)
+    required_bytes = int(seconds * self._sample_rate_hz * 2 * self._channels)
     if len(self.unscaled_data) < required_bytes:
         return []
     self.lock.acquire()
     passing = self.unscaled_data[-required_bytes:]
     self.unscaled_data = passing
     self.lock.release()
-    passing, self._conv_state = audioop.ratecv(passing, 1, 1, self._sample_rate_hz, 16000, self._conv_state)
+    passing, self._conv_state = audioop.ratecv(passing, 2, self._channels, self._sample_rate_hz, 16000, self._conv_state)
+    passing = audioop.tomono(passing, 2, .5, .5)
     return passing
 
   def __exit__(self, *args):
@@ -142,7 +154,8 @@ class Fetcher(threading.Thread):
       rate = self.processor.add_data(chunk)
       #print(time.time(), 'handle', rate, time.time() - bt)
       if rate:
-        os.system('aplay jaaa.wav && curl http://localhost:3838')
+        if not 'STREAM' in os.environ:
+          os.system('aplay jaaa.wav && curl http://localhost:3838')
         with open('out-%.3f-%.2f.raw' % (rate, time.time()), 'wb') as f:
           f.write(chunk)
       #for p in self._processors:
@@ -169,6 +182,7 @@ class RecognizeCommands(object):
     self.average_window_duration_ms_ = average_window_duration_ms
     self.detection_threshold_ = detection_threshold
     self.suppression_ms_ = suppression_ms
+    self.last_time_ms = 0
     self.minimum_count_ = minimum_count
     self.sample_rate_ = sample_rate
     self.sample_duration_ms_ = sample_duration_ms
@@ -198,7 +212,8 @@ class RecognizeCommands(object):
 
     # convert binary chunks to short
     a = struct.unpack("%ih" % 16000, data_bytes)
-    a = [float(val) / pow(2, 15) for val in a]
+    pow15 = pow(2,15)
+    a = [float(val) / pow15 for val in a]
     input_data=np.array(a,dtype=float)
 
     bt = time.time()
@@ -207,11 +222,14 @@ class RecognizeCommands(object):
     #print('logfbank', mels.shape, time.time() - bt)
     bt = time.time()
 
+    current_time_ms = time.time() * 1000
     predictions, = self.sess_.run(softmax_tensor, input)
     print('{} Confidence {:3}'.format(time.time(), int(100*predictions[1])))
 
-    current_time_ms = int(round(time.time() * 1000))
     time_since_last_top = current_time_ms - self.previous_top_label_time_
+    delta = time.time() * 1000 - current_time_ms
+    if delta < 150:
+        time.sleep(.150 - delta / 1000)
 
     if predictions[1] > self.detection_threshold_ and time_since_last_top > self.suppression_ms_:
       self.previous_top_label_time_ = current_time_ms
