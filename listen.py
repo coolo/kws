@@ -62,6 +62,7 @@ class Recorder(threading.Thread):
 
     self._channels = 1
     self._sample_rate_hz = sample_rate_hz
+    self._bytes_per_sample = bytes_per_sample
     if not 'STREAM' in os.environ:
        self.inp = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, device=input_device)
        self.inp.setchannels(self._channels)
@@ -91,9 +92,9 @@ class Recorder(threading.Thread):
 
     while True:
       if not 'STREAM' in os.environ:
-          l, input_data = self.inp.read()
+          l, input_data = self.inp.read(12000)
       else:
-          input_data = self.inp.read(12000)
+          input_data = self.inp.read(int(self._sample_rate_hz * self._channels * self._bytes_per_sample * 0.1))
       if not input_data:
         break
 
@@ -147,10 +148,12 @@ class Fetcher(threading.Thread):
   def run(self):
     while True:
       chunk = self.recorder.take_last_chunk(1)
+      #print('taken', time.time(), len(chunk))
       if not len(chunk):
          time.sleep(0.1)
          continue
-      bt = time.time()
+
+      #bt = time.time()
       rate = self.processor.add_data(chunk)
       #print(time.time(), 'handle', rate, time.time() - bt)
       if rate:
@@ -213,17 +216,19 @@ class RecognizeCommands(object):
     # convert binary chunks to short
     a = struct.unpack("%ih" % 16000, data_bytes)
     pow15 = pow(2,15)
-    a = [float(val) / pow15 for val in a]
-    input_data=np.array(a,dtype=float)
+    input_data = np.frombuffer(data_bytes, dtype='i2')/pow15
 
-    bt = time.time()
+    #bt = time.time()
     mels=logfbank(input_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=40,nfft=1024, winlen=0.040,winstep=0.025)[:39]
     input = {'fingerprint_4d:0': np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1))}
+
     #print('logfbank', mels.shape, time.time() - bt)
+
     bt = time.time()
 
     current_time_ms = time.time() * 1000
     predictions, = self.sess_.run(softmax_tensor, input)
+    #predictions = [1,0]
     print('{} Confidence {:3}'.format(time.time(), int(100*predictions[1])))
 
     time_since_last_top = current_time_ms - self.previous_top_label_time_
