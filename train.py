@@ -264,7 +264,7 @@ def main(_):
                       (training_step, total_accuracy * 100, set_size))
 
       # Save the model checkpoint when validation accuracy improves
-      if total_accuracy > best_accuracy:
+      if total_accuracy >= best_accuracy:
         best_accuracy = total_accuracy
         checkpoint_path = os.path.join(FLAGS.train_dir, 'best',
                                        FLAGS.model_architecture + '_'+ str(int(best_accuracy*10000)) + '.ckpt')
