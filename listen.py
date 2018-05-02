@@ -22,6 +22,7 @@ import os
 import subprocess
 import threading
 import time
+import sys
 import wave
 import tensorflow as tf
 import numpy as np
@@ -130,16 +131,16 @@ class Recorder(threading.Thread):
     return self
 
 class Fetcher(threading.Thread):
-  def __init__(self, recorder):
+  def __init__(self, recorder, detection_threshold):
     super(Fetcher, self).__init__()
     self.processor = None
+    self.detection_threshold_ = detection_threshold
     self.recorder = recorder
 
   def __exit__(self, *args):
     pass
 
   def __enter__(self):
-    print("enter fetcher")
     self.start()
     return self
 
@@ -147,20 +148,35 @@ class Fetcher(threading.Thread):
     self.processor = processor
 
   def run(self):
+    previous_top_label_time_ = 0
     while True:
       chunk = self.recorder.take_last_chunk(1)
       if not len(chunk):
          time.sleep(0.1)
          continue
 
-      #bt = time.time()
+      current_time_ms = time.time() * 1000
       rate = self.processor.add_data(chunk)
-      #print(time.time(), 'handle', rate, time.time() - bt)
-      if rate:
-        if not 'STREAM' in os.environ:
-          os.system('aplay jaaa.wav && curl http://localhost:3838')
+
+      if rate>0.01:
+         print('{} Confidence {:3}'.format(time.time(), int(100*rate)), file=sys.stderr)
+         sys.stderr.flush()
+
+      time_since_last_top = current_time_ms - previous_top_label_time_
+
+      #print(time.time(), 'handle', rate, int(time.time() * 1000 - current_time_ms))
+      if rate > 0.1:
+        if not 'STREAM' in os.environ and rate >= self.detection_threshold_ and time_since_last_top > self.processor.suppression_ms_:
+          os.system('curl -s http://localhost:3838 &')
+          previous_top_label_time_ = current_time_ms
         with open('out-%.3f-%.2f.raw' % (rate, time.time()), 'wb') as f:
           f.write(chunk)
+      
+      delta = time.time() * 1000 - current_time_ms
+      if delta < 150:
+         print("delta", delta)
+         time.sleep(.150 - delta / 1000)
+
       #for p in self._processors:
       # return p.add_data(chunk)
 
@@ -179,11 +195,10 @@ class RecognizePredictions(object):
 class RecognizeCommands(object):
   """A processor that identifies spoken commands from the stream."""
 
-  def __init__(self, graph, output_name, average_window_duration_ms, detection_threshold,
+  def __init__(self, graph, output_name, average_window_duration_ms, 
                suppression_ms, minimum_count, sample_rate, sample_duration_ms):
     self.output_name_ = output_name
     self.average_window_duration_ms_ = average_window_duration_ms
-    self.detection_threshold_ = detection_threshold
     self.suppression_ms_ = suppression_ms
     self.last_time_ms = 0
     self.minimum_count_ = minimum_count
@@ -215,29 +230,15 @@ class RecognizeCommands(object):
 
     input_data = np.frombuffer(data_bytes, dtype='i2')/pow(2,15)
 
-    #bt = time.time()
-    mels=logfbank(input_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=40,nfft=1024, winlen=0.040,winstep=0.025)[:39]
+    mels=logfbank(input_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=36,nfft=1024, winlen=0.020,winstep=0.010)
     input = {'fingerprint_4d:0': np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1))}
 
     #print('logfbank', mels.shape, time.time() - bt)
 
     bt = time.time()
 
-    current_time_ms = time.time() * 1000
     predictions, = self.sess_.run(softmax_tensor, input)
-    #predictions = [1,0]
-    print('{} Confidence {:3}'.format(time.time(), int(100*predictions[1])))
-
-    time_since_last_top = current_time_ms - self.previous_top_label_time_
-    delta = time.time() * 1000 - current_time_ms
-    if delta < 150:
-        time.sleep(.150 - delta / 1000)
-
-    if predictions[1] > self.detection_threshold_ and time_since_last_top > self.suppression_ms_:
-      self.previous_top_label_time_ = current_time_ms
-      return predictions[1]
-    else:
-      return 0
+    return predictions[1]
 
   def is_done(self):
     return False
@@ -314,11 +315,11 @@ def main():
       bytes_per_sample=args.bytes_per_sample,
       sample_rate_hz=args.rate)
 
-  fetcher = Fetcher(recorder)
+  fetcher = Fetcher(recorder, args.detection_threshold)
 
   recognizer = RecognizeCommands(
       args.graph, args.output_name, args.average_window_duration_ms,
-      args.detection_threshold, args.suppression_ms, args.minimum_count,
+      args.suppression_ms, args.minimum_count,
       args.sample_rate, args.sample_duration_ms)
 
   with fetcher, recorder, recognizer:
