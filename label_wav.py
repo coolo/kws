@@ -83,11 +83,11 @@ def run_graph(wav_glob, output_layer_name):
        a = [float(val) / pow(2, 15) for val in a]
        wav_data=np.array(a,dtype=float)
        nfft=1024
-       mels=logfbank(wav_data, w.getframerate(), lowfreq=50.0, highfreq=4200.0,nfilt=40,winlen=0.040, winstep=0.025, nfft=nfft)[:39]
+       mels=logfbank(wav_data, w.getframerate(), lowfreq=50.0, highfreq=4200.0,nfilt=36,winlen=0.020, winstep=0.010, nfft=nfft)
        np.set_printoptions(threshold=np.inf)
        input = {'fingerprint_4d:0': np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1))}
        predictions, = sess.run(softmax_tensor, input)
-       print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, wav_path, int(predictions[1] * 100 + 0.5), bcolors.ENDC)
+       print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, int(predictions[1] * 100 + 0.5), wav_path, bcolors.ENDC)
     return 0
 
 

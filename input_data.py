@@ -203,10 +203,12 @@ class AudioProcessor(object):
     num_vali = int(len(all_files) * validation_percentage / 100.)
     num_test = int(len(all_files) * testing_percentage / 100.)
     for e in all_files:
+       self.data_index['validation'].append(e)
        ds = 'training'
        if num_vali > 0:
            ds = 'validation'
            num_vali -= 1
+           continue
        elif num_test > 0:
            ds = 'testing'
            num_test -= 1

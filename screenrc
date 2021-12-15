@@ -1,0 +1,31 @@
+# don't display the copyright page
+startup_message off
+defscrollback 5000
+
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://185.52.127.157/de/33013/mp3_128.mp3 OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://abc.net.au/res/streaming/audio/mp3/triplej.pls OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://avw.mdr.de/streams/284320-0_mp3_high.m3u OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://httpmedia.radiobremen.de/bremenvier.m3u OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://live96.917xfm.de OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://mp3channels.webradio.antenne.de/antenne OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://mp3channels.webradio.antenne.de/classic-rock-live OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://st01.dlf.de/dlf/01/64/mp3/stream.mp3 OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://stream.104.6rtl.com/rtl-live/mp3-128 OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://stream.917xfm.de/917xfm/mp3-128/ OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://stream.blackbeatslive.de/ OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://stream.ffn.de/ffn/mp3-192 OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://stream.laut.fm/total-instrumental.m3u OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://stream.m945.mwn.de/m945-lq.mp3.m3u OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://stream.multicult.fm:8000/hifi.m3u OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://streams.antennemv.de/antennemv-live/mp3-192/amv OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://streams.br.de/b5aktuell_2.m3u OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://streams.br.de/bayern3_2.m3u OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://streams.planetradio.de/planetradio/mp3/hqlivestream.m3u OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://webstream.hitradion1.de/hitradion1 OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://rs5.stream24.net:80/stream OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://www.fritz.de/live.m3u OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://www.ndr.de/resources/metadaten/audio/m3u/ndr2.m3u OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+screen bash -c 'source /space/coolo/env/bin/activate; STREAM=http://www.ndr.de/resources/metadaten/audio/m3u/ndr903.m3u OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+
+# screen bash -c 'source /space/coolo/env/bin/activate; STREAM= OMP_NUM_THREADS=1 python listen.py --graph g18.pb --detection_threshold 0.1'
+

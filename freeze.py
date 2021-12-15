@@ -43,6 +43,7 @@ import os.path
 import sys
 
 import tensorflow as tf
+import numpy as np
 
 from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
 import input_data
@@ -99,6 +100,26 @@ def main(_):
                          FLAGS.window_size_ms, FLAGS.window_stride_ms,
                          FLAGS.dct_coefficient_count, FLAGS.model_architecture, FLAGS.model_size_info)
   models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
+
+  for v in tf.trainable_variables():
+    var_name = str(v.name)
+    var_values = sess.run(v)
+    min_value = var_values.min()
+    max_value = var_values.max()
+    int_bits = int(np.ceil(np.log2(max(abs(min_value),abs(max_value)))))
+    dec_bits = 7-int_bits
+    # convert to [-128,128) or int8
+    var_values = np.round(var_values*2**dec_bits)
+    var_name = var_name.replace('/','_')
+    var_name = var_name.replace(':','_')
+    # convert back original range but quantized to 8-bits or 256 levels
+    var_values = var_values/(2**dec_bits)
+    # update the weights in tensorflow graph for quantizing the activations
+    var_values = sess.run(tf.assign(v,var_values))
+    print(var_name+' number of wts/bias: '+str(var_values.shape)+\
+            ' dec bits: '+str(dec_bits)+\
+            ' max: ('+str(var_values.max())+','+str(max_value)+')'+\
+            ' min: ('+str(var_values.min())+','+str(min_value)+')')
 
   # Turn all the variables into inline constants inside the graph and save it.
   frozen_graph_def = graph_util.convert_variables_to_constants(
