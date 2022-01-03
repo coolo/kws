@@ -1,7 +1,7 @@
 
 set -xe
 
-rm -rf /tmp/speech_commands_train/ /tmp/retrain_logs/; python train.py --data_bad=/space/coolo/data/schlecht/ --data_good=/space/coolo/data/gut/ --model_architecture crnn --model_size_info 198 8 2 3 2 2 91 30 --dct_coefficient_count 36 --window_size_ms 20 --window_stride_ms 10 --learning_rate 0.00007 --how_many_training_steps 100000 --testing_percentage 0 --validation_percentage 10 --batch_size 20
+rm -rf /tmp/speech_commands_train/ /tmp/retrain_logs/; python train.py --data_bad=/home/coolo/prod/tf2/schlecht/ --data_good=/home/coolo/prod/tf2/gut/ --model_architecture crnn --model_size_info 198 8 2 3 2 2 91 30 --dct_coefficient_count 36 --window_size_ms 20 --window_stride_ms 10 --learning_rate 0.00007 --how_many_training_steps 100000 --testing_percentage 0 --validation_percentage 10 --batch_size 20
 
 best=$(ls -1tr /tmp/speech_commands_train/best/crnn_*.meta | tail -n 1 | sed -e 's,\.meta,,')
 python freeze.py --model_architecture crnn --model_size_info 198 8 2 3 2 2 91 30 --dct_coefficient_count 36 --window_size_ms 20 --window_stride_ms 10 --start_checkpoint $best  --output_file $1
