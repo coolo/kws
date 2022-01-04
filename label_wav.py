@@ -73,8 +73,6 @@ def run_graph(wav_glob, output_layer_name):
     #   dimension represents the input image count, and the other has
     #   predictions per class
     softmax_tensor = sess.graph.get_tensor_by_name(output_layer_name)
-
-    list = glob.glob(wav_glob)
     for wav_path in glob.glob(wav_glob):
        w = wave.open(wav_path)
        astr = w.readframes(w.getframerate())
@@ -92,13 +90,6 @@ def run_graph(wav_glob, output_layer_name):
 
 
 def label_wav(wav, graph, output_name):
-  """Loads the model and labels, and runs the inference to print predictions."""
-  if not wav or not tf.gfile.Exists(wav):
-    tf.logging.fatal('Audio file does not exist %s', wav)
-
-  if not graph or not tf.gfile.Exists(graph):
-    tf.logging.fatal('Graph file does not exist %s', graph)
-
   # load graph, which is stored in the default session
   load_graph(graph)
 

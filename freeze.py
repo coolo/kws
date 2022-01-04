@@ -19,15 +19,11 @@ to convert it into a binary GraphDef file that can be loaded into the Android,
 iOS, or Raspberry Pi example code. Here's an example of how to run it:
 
 bazel run tensorflow/examples/speech_commands/freeze -- \
---sample_rate=16000 --dct_coefficient_count=40 --window_size_ms=20 \
+--dct_coefficient_count=40 \
 --window_stride_ms=10 \
 --model_architecture=conv \
 --start_checkpoint=/tmp/speech_commands_train/conv.ckpt-1300 \
 --output_file=/tmp/my_frozen_graph.pb
-
-One thing to watch out for is that you need to pass in the same arguments for
-`sample_rate` and other command line variables here as you did for the training
-script.
 
 The resulting graph has an input for WAV-encoded data named 'wav_data', one for
 raw PCM data (as floats in the range -1.0 to 1.0) called 'decoded_sample_data',
@@ -53,8 +49,8 @@ from tensorflow.python.framework import graph_util
 FLAGS = None
 CLIP_DURATION_MS = 1000
 
-def create_inference_graph(sample_rate, 
-                           window_size_ms, window_stride_ms,
+def create_inference_graph(sample_rate,
+                           window_stride_ms,
                            dct_coefficient_count, model_size_info):
   """Creates an audio model with the nodes needed for inference.
 
@@ -63,14 +59,13 @@ def create_inference_graph(sample_rate,
 
   Args:
     sample_rate: How many samples per second are in the input audio files.
-    window_size_ms: Time slice duration to estimate frequencies from.
     window_stride_ms: How far apart time slices should be.
     dct_coefficient_count: Number of frequency bands to analyze.
     model_architecture: Name of the kind of model to generate.
   """
 
   model_settings = models.prepare_model_settings(2,
-      sample_rate, CLIP_DURATION_MS, window_size_ms,
+      sample_rate, CLIP_DURATION_MS,
       window_stride_ms, dct_coefficient_count)
 
   input_frequency_size = model_settings['dct_coefficient_count']
@@ -91,7 +86,7 @@ def main(_):
   # Create the model and load its weights.
   sess = tf.InteractiveSession()
   create_inference_graph(FLAGS.sample_rate,
-                         FLAGS.window_size_ms, FLAGS.window_stride_ms,
+                         FLAGS.window_stride_ms,
                          FLAGS.dct_coefficient_count, FLAGS.model_size_info)
  
   for v in tf.trainable_variables():
@@ -122,21 +117,9 @@ def main(_):
       os.path.dirname(FLAGS.output_file),
       os.path.basename(FLAGS.output_file),
       as_text=False)
-  tf.logging.info('Saved frozen graph to %s', FLAGS.output_file)
-
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument(
-      '--sample_rate',
-      type=int,
-      default=16000,
-      help='Expected sample rate of the wavs',)
-  parser.add_argument(
-      '--window_size_ms',
-      type=float,
-      default=30.0,
-      help='How long each spectrogram timeslice is',)
   parser.add_argument(
       '--window_stride_ms',
       type=float,

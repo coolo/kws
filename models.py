@@ -37,34 +37,27 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import rnn_cell_impl
 from tensorflow.python.ops import variable_scope as vs
-from train import SAMPLE_RATE
 
-def prepare_model_settings(window_size_ms, window_stride_ms,
-                           dct_coefficient_count):
+WINDOW_SIZE_MS = 20
+WINDOW_STRIDE_MS = 10
+SAMPLE_RATE = 16000
+
+def prepare_model_settings(dct_coefficient_count):
   """Calculates common settings needed for all models.
 
   Args:
-    window_size_ms: Duration of frequency analysis window.
-    window_stride_ms: How far to move in time between frequency windows.
-    dct_coefficient_count: Number of frequency bins to use for analysis.
+     dct_coefficient_count: Number of frequency bins to use for analysis.
 
   Returns:
     Dictionary containing common settings.
   """
   desired_samples = SAMPLE_RATE
-  window_size_samples = int(SAMPLE_RATE * window_size_ms / 1000)
-  window_stride_samples = int(SAMPLE_RATE * window_stride_ms / 1000)
+  window_size_samples = int(SAMPLE_RATE * WINDOW_SIZE_MS / 1000)
+  window_stride_samples = int(SAMPLE_RATE * WINDOW_STRIDE_MS / 1000)
   length_minus_window = (desired_samples - window_size_samples)
-  if length_minus_window < 0:
-    spectrogram_length = 0
-  else:
-    spectrogram_length = 1 + int(length_minus_window / window_stride_samples)
+  spectrogram_length = 1 + int(length_minus_window / window_stride_samples)
   return {
       'desired_samples': desired_samples,
-      'window_size_ms': window_size_ms,
-      'window_stride_ms': window_stride_ms,
-      'window_size_samples': window_size_samples,
-      'window_stride_samples': window_stride_samples,
       'spectrogram_length': spectrogram_length,
       'dct_coefficient_count': dct_coefficient_count
   }
@@ -73,15 +66,12 @@ def prepare_model_settings(window_size_ms, window_stride_ms,
 class LayerNormGRUCell(rnn_cell_impl.RNNCell):
 
   def __init__(self, num_units, forget_bias=1.0,
-               input_size=None, activation=math_ops.tanh,
+               activation=math_ops.tanh,
                layer_norm=True, norm_gain=1.0, norm_shift=0.0,
                dropout_keep_prob=1.0, dropout_prob_seed=None,
                reuse=None):
 
     super(LayerNormGRUCell, self).__init__(_reuse=reuse)
-
-    if input_size is not None:
-      tf.logging.info("%s: The input_size parameter is deprecated.", self)
 
     self._num_units = num_units
     self._activation = activation

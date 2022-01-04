@@ -20,7 +20,8 @@ import random
 import struct
 
 import numpy as np
-from six.moves import xrange  # pylint: disable=redefined-builtin
+from six.moves import xrange
+from models import WINDOW_STRIDE_MS  # pylint: disable=redefined-builtin
 import tensorflow as tf
 import wave
 
@@ -29,26 +30,27 @@ from tensorflow.python.platform import gfile
 from python_speech_features import logfbank
 
 RANDOM_SEED = 59181
+WINDOW_SIZE_MS = 20
+WINDOW_STRIDE_MS = 10
 
 class AudioProcessor(object):
   """Handles loading, partitioning, and preparing audio training data."""
 
-  def __init__(self, data_good, data_bad, silence_percentage, unknown_percentage,
-               validation_percentage, testing_percentage,
+  def __init__(self, data_good, data_bad,
+               validation_percentage, 
                model_settings):
     self.data_good = data_good
     self.data_bad = data_bad
-    self.prepare_data_index(model_settings, validation_percentage, testing_percentage)
-    self.prepare_processing_graph(model_settings)
+    self.prepare_data_index(model_settings, validation_percentage)
 
-  def prepare_data_index(self, model_settings, validation_percentage, testing_percentage):
+  def prepare_data_index(self, model_settings, validation_percentage):
     # Make sure the shuffling and picking of unknowns is deterministic.
     random.seed(RANDOM_SEED)
     self.data_index = {'validation': [], 'testing': [], 'training': []}
-    self.read_one_half(self.data_bad, 0, validation_percentage, testing_percentage, model_settings)
-    self.read_one_half(self.data_good, 1, validation_percentage, testing_percentage, model_settings)
+    self.read_one_half(self.data_bad, 0, validation_percentage, model_settings)
+    self.read_one_half(self.data_good, 1, validation_percentage, model_settings)
 
-  def read_one_half(self, dir, label, validation_percentage, testing_percentage, model_settings):
+  def read_one_half(self, dir, label, validation_percentage, model_settings):
     search_path = os.path.join(dir, '*.wav')
     all_files = []
     np.set_printoptions(threshold=np.inf)
@@ -59,23 +61,16 @@ class AudioProcessor(object):
         a = struct.unpack("%ih" % (w.getframerate()* w.getnchannels()), astr)
         a = [float(val) / pow(2, 15) for val in a]
         wav_data=np.array(a,dtype=float)
-        #print(wav_path, len(wav_data))
-        #wav_data=np.pad(wav_data, ((0,15000)), 'constant')
-        nfft=512
-        while nfft < model_settings['window_size_samples']:
-            nfft *= 2
         mel=logfbank(wav_data, w.getframerate(), lowfreq=50.0,highfreq=4200.0,nfilt=model_settings['dct_coefficient_count'],
-                     winlen=model_settings['window_size_ms']/1000,
-                     winstep=model_settings['window_stride_ms']/1000,
-                     nfft=nfft)
-        #print(mel.shape, model_settings)
+                     winlen=WINDOW_SIZE_MS/1000,
+                     winstep=WINDOW_STRIDE_MS/1000,
+                     nfft=1024)
         all_files.append({'label': label, 'file': wav_path, 'mels': mel[:model_settings['spectrogram_length']]})
         w.close()
     # Make sure the ordering is random.
     random.shuffle(all_files)
 
     num_vali = int(len(all_files) * validation_percentage / 100.)
-    num_test = int(len(all_files) * testing_percentage / 100.)
     for e in all_files:
        self.data_index['validation'].append(e)
        ds = 'training'
@@ -83,14 +78,7 @@ class AudioProcessor(object):
            ds = 'validation'
            num_vali -= 1
            continue
-       elif num_test > 0:
-           ds = 'testing'
-           num_test -= 1
        self.data_index[ds].append(e)
-
-  def prepare_processing_graph(self, model_settings):
-    desired_samples = model_settings['desired_samples']
-    self.mels = tf.placeholder(tf.float32, [desired_samples, 1])
 
   def set_size(self, mode):
     """Calculates the number of samples in the dataset partition.
@@ -103,7 +91,7 @@ class AudioProcessor(object):
     """
     return len(self.data_index[mode])
 
-  def get_data(self, how_many, offset, model_settings, time_shift, mode, sess):
+  def get_data(self, how_many, offset, model_settings, mode):
     """Gather samples from the data set, applying transformations as needed.
 
     When the mode is 'training', a random selection of samples will be returned,
@@ -118,11 +106,9 @@ class AudioProcessor(object):
       background_frequency: How many clips will have background noise, 0.0 to
         1.0.
       background_volume_range: How loud the background noise will be.
-      time_shift: How much to randomly shift the clips by in time.
       mode: Which partition to use, must be 'training', 'validation', or
         'testing'.
-      sess: TensorFlow session that was active when processor was created.
-
+     
     Returns:
       List of sample data for the transformed samples, and list of label indexes
     """
