@@ -141,8 +141,7 @@ def create_model(fingerprint_4d, model_settings,
   Optionally, the bi-directional GRUs and/or GRU with layer-normalization
     can be explored.
   """
-  if is_training:
-    dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
+  dropout_rate = tf.compat.v1.placeholder(tf.float32, name='dropout_rate')
   input_frequency_size = model_settings['dct_coefficient_count']
   input_time_size = model_settings['spectrogram_length']
 
@@ -156,7 +155,7 @@ def create_model(fingerprint_4d, model_settings,
   first_filter_stride_y = model_size_info[3]
   first_filter_stride_x = model_size_info[4]
 
-  first_weights = tf.get_variable('W', shape=[first_filter_height,
+  first_weights = tf.compat.v1.get_variable('W', shape=[first_filter_height,
                     first_filter_width, 1, first_filter_count],
     initializer=tf.contrib.layers.xavier_initializer())
 
@@ -166,7 +165,7 @@ def create_model(fingerprint_4d, model_settings,
   ], 'VALID') + first_bias
   first_relu = tf.nn.relu(first_conv)
   if is_training:
-    first_dropout = tf.nn.dropout(first_relu, dropout_prob)
+    first_dropout = tf.nn.dropout(first_relu, rate=dropout_rate)
   else:
     first_dropout = first_relu
   first_conv_output_width = int(math.floor(
@@ -208,24 +207,21 @@ def create_model(fingerprint_4d, model_settings,
 
   first_fc_output_channels = model_size_info[7]
 
-  first_fc_weights = tf.get_variable('fcw', shape=[flow_dim,
+  first_fc_weights = tf.compat.v1.get_variable('fcw', shape=[flow_dim,
     first_fc_output_channels],
     initializer=tf.contrib.layers.xavier_initializer())
 
   first_fc_bias = tf.Variable(tf.zeros([first_fc_output_channels]))
   first_fc = tf.nn.relu(tf.matmul(flow, first_fc_weights) + first_fc_bias)
   if is_training:
-    final_fc_input = tf.nn.dropout(first_fc, dropout_prob)
+    final_fc_input = tf.nn.dropout(first_fc, rate=dropout_rate)
   else:
     final_fc_input = first_fc
 
   final_fc_weights = tf.Variable(
-      tf.truncated_normal(
+      tf.random.truncated_normal(
           [first_fc_output_channels, 2], stddev=0.01))
 
   final_fc_bias = tf.Variable(tf.zeros([2]))
   final_fc = tf.matmul(final_fc_input, final_fc_weights) + final_fc_bias
-  if is_training:
-    return final_fc, dropout_prob
-  else:
-    return final_fc
+  return final_fc, dropout_rate

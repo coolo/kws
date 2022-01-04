@@ -39,7 +39,7 @@ def main(_):
   logger.setLevel('INFO')
 
   # Start a new TensorFlow session.
-  sess = tf.InteractiveSession()
+  sess = tf.compat.v1.InteractiveSession()
 
   # Begin by making sure we have the training data we need. If you already have
   # training data of your own, use `--data_url= ` on the command line to avoid
@@ -66,17 +66,17 @@ def main(_):
   input_frequency_size = model_settings['dct_coefficient_count']
   input_time_size = model_settings['spectrogram_length']
 
-  fingerprint_input = tf.placeholder(
+  fingerprint_input = tf.compat.v1.placeholder(
       tf.float32, [None, input_time_size, input_frequency_size, 1], name='fingerprint_4d')
 
-  logits, dropout_prob = models.create_model(
+  logits, dropout_rate = models.create_model(
       fingerprint_input,
       model_settings,
       FLAGS.model_size_info,
       is_training=True)
 
   # Define loss and optimizer
-  ground_truth_input = tf.placeholder(
+  ground_truth_input = tf.compat.v1.placeholder(
       tf.float32, [None, 2], name='groundtruth_input')
 
   # Optionally we can add runtime checks to spot when NaNs or other symptoms of
@@ -89,11 +89,11 @@ def main(_):
   # Create the back propagation and training evaluation machinery in the graph.
   with tf.name_scope('cross_entropy'):
     cross_entropy_mean = tf.reduce_mean(
-        tf.nn.softmax_cross_entropy_with_logits(
+        tf.nn.softmax_cross_entropy_with_logits_v2(
             labels=ground_truth_input, logits=logits))
-  tf.summary.scalar('cross_entropy', cross_entropy_mean)
+  tf.compat.v1.summary.scalar('cross_entropy', cross_entropy_mean)
   
-  update_ops = tf.compat.v1.get_collection(tf.GraphKeys.UPDATE_OPS)
+  update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
   with tf.name_scope('train'), tf.control_dependencies(update_ops), tf.control_dependencies(control_dependencies):
     learning_rate_input = tf.placeholder(
         tf.float32, [], name='learning_rate_input')
@@ -107,18 +107,18 @@ def main(_):
       expected_indices, predicted_indices, num_classes=2)
   evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-  global_step = tf.train.get_or_create_global_step()
+  global_step = tf.compat.v1.train.get_or_create_global_step()
   increment_global_step = tf.compat.v1.assign(global_step, global_step + 1)
 
-  saver = tf.train.Saver(tf.global_variables())
+  saver = tf.compat.v1.train.Saver(tf.compat.v1.global_variables())
 
   # Merge all the summaries and write them out to /tmp/retrain_logs (by default)
-  merged_summaries = tf.summary.merge_all()
+  merged_summaries = tf.compat.v1.summary.merge_all()
  
-  tf.global_variables_initializer().run()
+  tf.compat.v1.global_variables_initializer().run()
 
   # Parameter counts
-  params = tf.trainable_variables()
+  params = tf.compat.v1.trainable_variables()
   num_params = sum(map(lambda t: np.prod(tf.shape(t.value()).eval()), params))
   print('Total number of Parameters: ', num_params)
 
@@ -126,13 +126,13 @@ def main(_):
   logging.info('Training from step: %d ', start_step)
 
   # Save graph.pbtxt.
-  tf.train.write_graph(sess.graph_def, FLAGS.train_dir,
+  tf.io.write_graph(sess.graph_def, FLAGS.train_dir,
                        'crnn.pbtxt')
 
   # Training loop.
   best_accuracy = 0
   training_steps_max = np.sum(training_steps_list)
-  for training_step in xrange(start_step, training_steps_max + 1):
+  for training_step in range(start_step, training_steps_max + 1):
     # Figure out what the current learning rate is.
     training_steps_sum = 0
     for i in range(len(training_steps_list)):
@@ -153,7 +153,7 @@ def main(_):
             fingerprint_input: train_fingerprints,
             ground_truth_input: train_ground_truth,
             learning_rate_input: learning_rate_value,
-            dropout_prob: 1.0
+            dropout_rate: 0
         })
     logging.info('Step #%d: rate %f, accuracy %.2f%%, cross entropy %f' %
                     (training_step, learning_rate_value, train_accuracy * 100,
@@ -163,7 +163,7 @@ def main(_):
       set_size = audio_processor.set_size('validation')
       total_accuracy = 0
       total_conf_matrix = None
-      for i in xrange(0, set_size, FLAGS.batch_size):
+      for i in range(0, set_size, FLAGS.batch_size):
         validation_fingerprints, validation_ground_truth = (
             audio_processor.get_data(FLAGS.batch_size, i, model_settings, 'validation'))
         # Run a validation step and capture training summaries for TensorBoard
@@ -173,7 +173,7 @@ def main(_):
             feed_dict={
                 fingerprint_input: validation_fingerprints,
                 ground_truth_input: validation_ground_truth,
-                dropout_prob: 1.0
+                dropout_rate: 0
             })
         batch_size = min(FLAGS.batch_size, set_size - i)
         total_accuracy += (validation_accuracy * batch_size) / set_size
@@ -280,4 +280,4 @@ if __name__ == '__main__':
       help='Whether to check for invalid numbers during processing')
 
   FLAGS, unparsed = parser.parse_known_args()
-  tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+  tf.compat.v1.app.run(main=main, argv=[sys.argv[0]] + unparsed)
