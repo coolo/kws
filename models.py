@@ -29,7 +29,7 @@ from __future__ import print_function
 import math
 
 import tensorflow as tf
-from tensorflow.contrib.layers.python.layers import layers
+from tf_slim import layers as slayers
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import math_ops
@@ -97,7 +97,7 @@ class LayerNormGRUCell(rnn_cell_impl.RNNCell):
       # Initialize beta and gamma for use by layer_norm.
       vs.get_variable("gamma", shape=shape, initializer=gamma_init)
       vs.get_variable("beta", shape=shape, initializer=beta_init)
-    normalized = layers.layer_norm(inp, reuse=True, scope=scope)
+    normalized = slayers.layer_norm(inp, reuse=True, scope=scope)
     return normalized
 
   def _linear(self, args, copy):
@@ -146,7 +146,6 @@ def create_model(fingerprint_4d, model_settings,
   input_time_size = model_settings['spectrogram_length']
 
   layer_norm = False
-  bidirectional = False
 
   # CNN part
   first_filter_count = model_size_info[0]
@@ -157,7 +156,7 @@ def create_model(fingerprint_4d, model_settings,
 
   first_weights = tf.compat.v1.get_variable('W', shape=[first_filter_height,
                     first_filter_width, 1, first_filter_count],
-    initializer=tf.contrib.layers.xavier_initializer())
+    initializer=tf.keras.initializers.glorot_normal())
 
   first_bias = tf.Variable(tf.zeros([first_filter_count]))
   first_conv = tf.nn.conv2d(fingerprint_4d, first_weights, [
@@ -181,36 +180,23 @@ def create_model(fingerprint_4d, model_settings,
   flow = tf.reshape(first_dropout, [-1, first_conv_output_height,
            first_conv_output_width * first_filter_count])
   cell_fw = []
-  cell_bw = []
   if layer_norm:
     for i in range(num_rnn_layers):
       cell_fw.append(LayerNormGRUCell(RNN_units))
-      if bidirectional:
-        cell_bw.append(LayerNormGRUCell(RNN_units))
   else:
     for i in range(num_rnn_layers):
-      cell_fw.append(tf.contrib.rnn.GRUCell(RNN_units))
-      if bidirectional:
-        cell_bw.append(tf.contrib.rnn.GRUCell(RNN_units))
+      cell_fw.append(tf.keras.layers.GRUCell(RNN_units))
 
-  if bidirectional:
-    outputs, output_state_fw, output_state_bw = \
-      tf.contrib.rnn.stack_bidirectional_dynamic_rnn(cell_fw, cell_bw, flow,
-      dtype=tf.float32)
-    flow_dim = first_conv_output_height*RNN_units*2
-    flow = tf.reshape(outputs, [-1, flow_dim])
-  else:
-    cells = tf.contrib.rnn.MultiRNNCell(cell_fw)
-    _, last = tf.nn.dynamic_rnn(cell=cells, inputs=flow, dtype=tf.float32)
-    flow_dim = RNN_units
-    flow = last[-1]
+  cells = tf.keras.layers.StackedRNNCells(cell_fw)
+  _, last = tf.nn.dynamic_rnn(cell=cells, inputs=flow, dtype=tf.float32)
+  flow_dim = RNN_units
+  flow = last[-1]
 
   first_fc_output_channels = model_size_info[7]
 
   first_fc_weights = tf.compat.v1.get_variable('fcw', shape=[flow_dim,
     first_fc_output_channels],
-    initializer=tf.contrib.layers.xavier_initializer())
-
+    initializer=tf.keras.initializers.glorot_normal())
   first_fc_bias = tf.Variable(tf.zeros([first_fc_output_channels]))
   first_fc = tf.nn.relu(tf.matmul(flow, first_fc_weights) + first_fc_bias)
   if is_training:

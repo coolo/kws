@@ -28,7 +28,7 @@ import tensorflow as tf
 import logging
 import input_data
 import models
-from tensorflow.contrib import slim as slim 
+import tf_slim as slim 
 
 FLAGS = None
 SAMPLE_RATE = 16000
@@ -95,7 +95,7 @@ def main(_):
   
   update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
   with tf.name_scope('train'), tf.control_dependencies(update_ops), tf.control_dependencies(control_dependencies):
-    learning_rate_input = tf.placeholder(
+    learning_rate_input = tf.compat.v1.placeholder(
         tf.float32, [], name='learning_rate_input')
     train_op = tf.compat.v1.train.AdamOptimizer(
         learning_rate_input)
