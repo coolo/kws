@@ -17,76 +17,17 @@
 # Added model dimensions as command line argument and changed to Adam optimizer
 #
 #
-"""Simple speech recognition to spot a limited number of keywords.
-
-This is a self-contained example script that will train a very basic audio
-recognition model in TensorFlow. It downloads the necessary training data and
-runs with reasonable defaults to train within a few hours even only using a CPU.
-For more information, please see
-https://www.tensorflow.org/tutorials/audio_recognition.
-
-It is intended as an introduction to using neural networks for audio
-recognition, and is not a full speech recognition system. For more advanced
-speech systems, I recommend looking into Kaldi. This network uses a keyword
-detection style to spot discrete words from a small vocabulary, consisting of
-"yes", "no", "up", "down", "left", "right", "on", "off", "stop", and "go".
-
-To run the training process, use:
-
-bazel run tensorflow/examples/speech_commands:train
-
-This will write out checkpoints to /tmp/speech_commands_train/, and will
-download over 1GB of open source training data, so you'll need enough free space
-and a good internet connection. The default data is a collection of thousands of
-one-second .wav files, each containing one spoken word. This data set is
-collected from https://aiyprojects.withgoogle.com/open_speech_recording, please
-consider contributing to help improve this and other models!
-
-As training progresses, it will print out its accuracy metrics, which should
-rise above 90% by the end. Once it's complete, you can run the freeze script to
-get a binary GraphDef that you can easily deploy on mobile applications.
-
-If you want to train on your own data, you'll need to create .wavs with your
-recordings, all at a consistent length, and then arrange them into subfolders
-organized by label. For example, here's a possible file structure:
-
-my_wavs >
-  up >
-    audio_0.wav
-    audio_1.wav
-  down >
-    audio_2.wav
-    audio_3.wav
-  other>
-    audio_4.wav
-    audio_5.wav
-
-You'll also need to tell the script what labels to look for, using the
-`--wanted_words` argument. In this case, 'up,down' might be what you want, and
-the audio in the 'other' folder would be used to train an 'unknown' category.
-
-To pull this all together, you'd run:
-
-bazel run tensorflow/examples/speech_commands:train -- \
---data_dir=my_wavs --wanted_words=up,down
-
-"""
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import argparse
 import os.path
 import sys
 
 import numpy as np
-from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
 import logging
 import input_data
 import models
-from tensorflow.python.platform import gfile
 from tensorflow.contrib import slim as slim 
 
 FLAGS = None
@@ -151,35 +92,29 @@ def main(_):
         tf.nn.softmax_cross_entropy_with_logits(
             labels=ground_truth_input, logits=logits))
   tf.summary.scalar('cross_entropy', cross_entropy_mean)
-
-  update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+  
+  update_ops = tf.compat.v1.get_collection(tf.GraphKeys.UPDATE_OPS)
   with tf.name_scope('train'), tf.control_dependencies(update_ops), tf.control_dependencies(control_dependencies):
     learning_rate_input = tf.placeholder(
         tf.float32, [], name='learning_rate_input')
-    train_op = tf.train.AdamOptimizer(
+    train_op = tf.compat.v1.train.AdamOptimizer(
         learning_rate_input)
     train_step = slim.learning.create_train_op(cross_entropy_mean, train_op)
-#    train_step = tf.train.GradientDescentOptimizer(
-#        learning_rate_input).minimize(cross_entropy_mean)
   predicted_indices = tf.argmax(logits, 1)
   expected_indices = tf.argmax(ground_truth_input, 1)
   correct_prediction = tf.equal(predicted_indices, expected_indices)
-  confusion_matrix = tf.confusion_matrix(
+  confusion_matrix = tf.math.confusion_matrix(
       expected_indices, predicted_indices, num_classes=2)
   evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-  tf.summary.scalar('accuracy', evaluation_step)
 
   global_step = tf.train.get_or_create_global_step()
-  increment_global_step = tf.assign(global_step, global_step + 1)
+  increment_global_step = tf.compat.v1.assign(global_step, global_step + 1)
 
   saver = tf.train.Saver(tf.global_variables())
 
   # Merge all the summaries and write them out to /tmp/retrain_logs (by default)
   merged_summaries = tf.summary.merge_all()
-  train_writer = tf.summary.FileWriter(FLAGS.summaries_dir + '/train',
-                                       sess.graph)
-  validation_writer = tf.summary.FileWriter(FLAGS.summaries_dir + '/validation')
-
+ 
   tf.global_variables_initializer().run()
 
   # Parameter counts
@@ -220,7 +155,6 @@ def main(_):
             learning_rate_input: learning_rate_value,
             dropout_prob: 1.0
         })
-    train_writer.add_summary(train_summary, training_step)
     logging.info('Step #%d: rate %f, accuracy %.2f%%, cross entropy %f' %
                     (training_step, learning_rate_value, train_accuracy * 100,
                      cross_entropy_value))
@@ -241,7 +175,6 @@ def main(_):
                 ground_truth_input: validation_ground_truth,
                 dropout_prob: 1.0
             })
-        validation_writer.add_summary(validation_summary, training_step)
         batch_size = min(FLAGS.batch_size, set_size - i)
         total_accuracy += (validation_accuracy * batch_size) / set_size
         if total_conf_matrix is None:
@@ -324,11 +257,6 @@ if __name__ == '__main__':
       type=int,
       default=100,
       help='How many items to train with at once',)
-  parser.add_argument(
-      '--summaries_dir',
-      type=str,
-      default='/tmp/retrain_logs',
-      help='Where to save summary logs for TensorBoard.')
   parser.add_argument(
       '--train_dir',
       type=str,

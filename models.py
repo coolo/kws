@@ -29,7 +29,6 @@ from __future__ import print_function
 import math
 
 import tensorflow as tf
-import tensorflow.contrib.slim as slim
 from tensorflow.contrib.layers.python.layers import layers
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import init_ops
@@ -57,7 +56,6 @@ def prepare_model_settings(dct_coefficient_count):
   length_minus_window = (desired_samples - window_size_samples)
   spectrogram_length = 1 + int(length_minus_window / window_stride_samples)
   return {
-      'desired_samples': desired_samples,
       'spectrogram_length': spectrogram_length,
       'dct_coefficient_count': dct_coefficient_count
   }
