@@ -72,7 +72,6 @@ def main(_):
   logits, dropout_rate = models.create_model(
       fingerprint_input,
       model_settings,
-      FLAGS.model_size_info,
       is_training=True)
 
   # Define loss and optimizer
@@ -207,20 +206,6 @@ if __name__ == '__main__':
         Subdirs with bad examples.
         """)
   parser.add_argument(
-      '--background_volume',
-      type=float,
-      default=0.1,
-      help="""\
-      How loud the background noise should be, between 0 and 1.
-      """)
-  parser.add_argument(
-      '--background_frequency',
-      type=float,
-      default=0.8,
-      help="""\
-      How many of the training samples have background noise mixed in.
-      """)
-  parser.add_argument(
       '--validation_percentage',
       type=int,
       default=10,
@@ -255,17 +240,6 @@ if __name__ == '__main__':
       type=str,
       default='/tmp/speech_commands_train',
       help='Directory to write event logs and checkpoint.')
-  parser.add_argument(
-      '--save_step_interval',
-      type=int,
-      default=100,
-      help='Save model checkpoint every save_steps.')
-  parser.add_argument(
-      '--model_size_info',
-      type=int,
-      nargs="+",
-      default=[128,128,128],
-      help='Model dimensions - different for various models')
 
   FLAGS, unparsed = parser.parse_known_args()
   tf.compat.v1.app.run(main=main, argv=[sys.argv[0]] + unparsed)

@@ -60,79 +60,7 @@ def prepare_model_settings(dct_coefficient_count):
       'dct_coefficient_count': dct_coefficient_count
   }
 
-
-class LayerNormGRUCell(rnn_cell_impl.RNNCell):
-
-  def __init__(self, num_units, forget_bias=1.0,
-               activation=math_ops.tanh,
-               layer_norm=True, norm_gain=1.0, norm_shift=0.0,
-               dropout_keep_prob=1.0, dropout_prob_seed=None,
-               reuse=None):
-
-    super(LayerNormGRUCell, self).__init__(_reuse=reuse)
-
-    self._num_units = num_units
-    self._activation = activation
-    self._forget_bias = forget_bias
-    self._keep_prob = dropout_keep_prob
-    self._seed = dropout_prob_seed
-    self._layer_norm = layer_norm
-    self._g = norm_gain
-    self._b = norm_shift
-    self._reuse = reuse
-
-  @property
-  def state_size(self):
-    return self._num_units
-
-  @property
-  def output_size(self):
-    return self._num_units
-
-  def _norm(self, inp, scope):
-    shape = inp.get_shape()[-1:]
-    gamma_init = init_ops.constant_initializer(self._g)
-    beta_init = init_ops.constant_initializer(self._b)
-    with vs.variable_scope(scope):
-      # Initialize beta and gamma for use by layer_norm.
-      vs.get_variable("gamma", shape=shape, initializer=gamma_init)
-      vs.get_variable("beta", shape=shape, initializer=beta_init)
-    normalized = slayers.layer_norm(inp, reuse=True, scope=scope)
-    return normalized
-
-  def _linear(self, args, copy):
-    out_size = copy * self._num_units
-    proj_size = args.get_shape()[-1]
-    weights = vs.get_variable("kernel", [proj_size, out_size])
-    out = math_ops.matmul(args, weights)
-    if not self._layer_norm:
-      bias = vs.get_variable("bias", [out_size])
-      out = nn_ops.bias_add(out, bias)
-    return out
-
-  def call(self, inputs, state):
-    """LSTM cell with layer normalization and recurrent dropout."""
-    with vs.variable_scope("gates"):
-      h = state
-      args = array_ops.concat([inputs, h], 1)
-      concat = self._linear(args, 2)
-
-      z, r = array_ops.split(value=concat, num_or_size_splits=2, axis=1)
-      if self._layer_norm:
-        z = self._norm(z, "update")
-        r = self._norm(r, "reset")
-
-    with vs.variable_scope("candidate"):
-      args = array_ops.concat([inputs, math_ops.sigmoid(r) * h], 1)
-      new_c = self._linear(args, 1)
-      if self._layer_norm:
-        new_c = self._norm(new_c, "state")
-    new_h = self._activation(new_c) * math_ops.sigmoid(z) + \
-              (1 - math_ops.sigmoid(z)) * h
-    return new_h, new_h
-
-def create_model(fingerprint_4d, model_settings,
-                                  model_size_info, is_training):
+def create_model(fingerprint_4d, model_settings, is_training):
   """Builds a model with convolutional recurrent networks with GRUs
   Based on the model definition in https://arxiv.org/abs/1703.05390
   model_size_info: defines the following convolution layer parameters
@@ -145,14 +73,12 @@ def create_model(fingerprint_4d, model_settings,
   input_frequency_size = model_settings['dct_coefficient_count']
   input_time_size = model_settings['spectrogram_length']
 
-  layer_norm = False
-
   # CNN part
-  first_filter_count = model_size_info[0]
-  first_filter_height = model_size_info[1]
-  first_filter_width = model_size_info[2]
-  first_filter_stride_y = model_size_info[3]
-  first_filter_stride_x = model_size_info[4]
+  first_filter_count = 198
+  first_filter_height = 8
+  first_filter_width = 2
+  first_filter_stride_y = 3
+  first_filter_stride_x = 2
 
   first_weights = tf.compat.v1.get_variable('W', shape=[first_filter_height,
                     first_filter_width, 1, first_filter_count],
@@ -175,24 +101,20 @@ def create_model(fingerprint_4d, model_settings,
       first_filter_stride_y))
 
   # GRU part
-  num_rnn_layers = model_size_info[5]
-  RNN_units = model_size_info[6]
+  num_rnn_layers = 2
+  RNN_units = 91
   flow = tf.reshape(first_dropout, [-1, first_conv_output_height,
            first_conv_output_width * first_filter_count])
   cell_fw = []
-  if layer_norm:
-    for i in range(num_rnn_layers):
-      cell_fw.append(LayerNormGRUCell(RNN_units))
-  else:
-    for i in range(num_rnn_layers):
-      cell_fw.append(tf.keras.layers.GRUCell(RNN_units))
+  for i in range(num_rnn_layers):
+    cell_fw.append(tf.keras.layers.GRUCell(RNN_units))
 
   cells = tf.keras.layers.StackedRNNCells(cell_fw)
   _, last = tf.nn.dynamic_rnn(cell=cells, inputs=flow, dtype=tf.float32)
   flow_dim = RNN_units
   flow = last[-1]
 
-  first_fc_output_channels = model_size_info[7]
+  first_fc_output_channels = 30
 
   first_fc_weights = tf.compat.v1.get_variable('fcw', shape=[flow_dim,
     first_fc_output_channels],
