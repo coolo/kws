@@ -89,7 +89,7 @@ from tensorflow.python.platform import gfile
 from tensorflow.contrib import slim as slim 
 
 FLAGS = None
-
+SAMPLE_RATE = 16000
 
 def main(_):
   # We want to see all the logging messages for this tutorial.
@@ -101,17 +101,15 @@ def main(_):
   # Begin by making sure we have the training data we need. If you already have
   # training data of your own, use `--data_url= ` on the command line to avoid
   # downloading.
-  model_settings = models.prepare_model_settings(2,
-      FLAGS.sample_rate, FLAGS.clip_duration_ms, FLAGS.window_size_ms,
+  model_settings = models.prepare_model_settings(
+      FLAGS.window_size_ms,
       FLAGS.window_stride_ms, FLAGS.dct_coefficient_count)
   audio_processor = input_data.AudioProcessor(
       FLAGS.data_good, FLAGS.data_bad, FLAGS.silence_percentage,
       FLAGS.unknown_percentage,
       FLAGS.validation_percentage,
       FLAGS.testing_percentage, model_settings)
-  fingerprint_size = model_settings['fingerprint_size']
-  label_count = model_settings['label_count']
-  time_shift_samples = int((FLAGS.time_shift_ms * FLAGS.sample_rate) / 1000)
+  time_shift_samples = int((FLAGS.time_shift_ms * SAMPLE_RATE) / 1000)
   # Figure out the learning rates for each training phase. Since it's often
   # effective to have high learning rates at the start of training, followed by
   # lower levels towards the end, the number of steps and learning rates can be
@@ -136,7 +134,6 @@ def main(_):
   logits, dropout_prob = models.create_model(
       fingerprint_input,
       model_settings,
-      FLAGS.model_architecture,
       FLAGS.model_size_info,
       is_training=True)
 
@@ -171,7 +168,7 @@ def main(_):
   expected_indices = tf.argmax(ground_truth_input, 1)
   correct_prediction = tf.equal(predicted_indices, expected_indices)
   confusion_matrix = tf.confusion_matrix(
-      expected_indices, predicted_indices, num_classes=label_count)
+      expected_indices, predicted_indices, num_classes=2)
   evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
   tf.summary.scalar('accuracy', evaluation_step)
 
@@ -194,16 +191,11 @@ def main(_):
   print('Total number of Parameters: ', num_params)
 
   start_step = 1
-
-  if FLAGS.start_checkpoint:
-    models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
-    start_step = global_step.eval(session=sess)
-
   tf.logging.info('Training from step: %d ', start_step)
 
   # Save graph.pbtxt.
   tf.train.write_graph(sess.graph_def, FLAGS.train_dir,
-                       FLAGS.model_architecture + '.pbtxt')
+                       'crnn.pbtxt')
 
   # Training loop.
   best_accuracy = 0
@@ -267,7 +259,7 @@ def main(_):
       if total_accuracy >= best_accuracy:
         best_accuracy = total_accuracy
         checkpoint_path = os.path.join(FLAGS.train_dir, 'best',
-                                       FLAGS.model_architecture + '_'+ str(int(best_accuracy*10000)) + '.ckpt')
+                                       'crnn_'+ str(int(best_accuracy*10000)) + '.ckpt')
         tf.logging.info('Saving best model to "%s-%d"', checkpoint_path, training_step)
         saver.save(sess, checkpoint_path, global_step=training_step)
       tf.logging.info('So far the best validation accuracy is %.2f%%' % (best_accuracy*100))
@@ -359,16 +351,6 @@ if __name__ == '__main__':
       default=10,
       help='What percentage of wavs to use as a validation set.')
   parser.add_argument(
-      '--sample_rate',
-      type=int,
-      default=16000,
-      help='Expected sample rate of the wavs',)
-  parser.add_argument(
-      '--clip_duration_ms',
-      type=int,
-      default=1000,
-      help='Expected duration in milliseconds of the wavs',)
-  parser.add_argument(
       '--window_size_ms',
       type=float,
       default=25.0,
@@ -418,16 +400,6 @@ if __name__ == '__main__':
       type=int,
       default=100,
       help='Save model checkpoint every save_steps.')
-  parser.add_argument(
-      '--start_checkpoint',
-      type=str,
-      default='',
-      help='If specified, restore this pretrained model before any training.')
-  parser.add_argument(
-      '--model_architecture',
-      type=str,
-      default='dnn',
-      help='What model architecture to use')
   parser.add_argument(
       '--model_size_info',
       type=int,

@@ -110,23 +110,6 @@ def powspec(frames, NFFT):
     return 1.0 / NFFT * numpy.square(magspec(frames, NFFT))
 
 
-def logpowspec(frames, NFFT, norm=1):
-    """Compute the log power spectrum of each frame in frames. If frames is an NxD matrix, output will be Nx(NFFT/2+1).
-
-    :param frames: the array of frames. Each row is a frame.
-    :param NFFT: the FFT length to use. If NFFT > frame_len, the frames are zero-padded.
-    :param norm: If norm=1, the log power spectrum is normalised so that the max value (across all frames) is 0.
-    :returns: If frames is an NxD matrix, output will be Nx(NFFT/2+1). Each row will be the log power spectrum of the corresponding frame.
-    """
-    ps = powspec(frames, NFFT);
-    ps[ps <= 1e-30] = 1e-30
-    lps = 10 * numpy.log10(ps)
-    if norm:
-        return lps - numpy.max(lps)
-    else:
-        return lps
-
-
 def preemphasis(signal, coeff=0.95):
     """perform preemphasis on the input signal.
 
@@ -158,14 +141,14 @@ def fbank(signal,samplerate=16000,winlen=0.025,winstep=0.01,
     signal = preemphasis(signal,preemph)
     frames = framesig(signal, winlen*samplerate, winstep*samplerate, winfunc)
     pspec = powspec(frames,nfft)
-    energy = numpy.sum(pspec,1) # this stores the total energy in each frame
-    energy = numpy.where(energy == 0,numpy.finfo(float).eps,energy) # if energy is zero, we get problems with log
+    #energy = numpy.sum(pspec,1) # this stores the total energy in each frame
+    #energy = numpy.where(energy == 0,numpy.finfo(float).eps,energy) # if energy is zero, we get problems with log
 
     fb = get_filterbanks(nfilt,nfft,samplerate,lowfreq,highfreq)
     feat = numpy.dot(pspec,fb.T) # compute the filterbank energies
     feat = numpy.where(feat == 0,numpy.finfo(float).eps,feat) # if feat is zero, we get problems with log
 
-    return feat,energy
+    return feat
 
 def logfbank(signal,samplerate=16000,winlen=0.025,winstep=0.01,
           nfilt=26,nfft=512,lowfreq=0,highfreq=None,preemph=0.97):
@@ -182,7 +165,7 @@ def logfbank(signal,samplerate=16000,winlen=0.025,winstep=0.01,
     :param preemph: apply preemphasis filter with preemph as coefficient. 0 is no filter. Default is 0.97.
     :returns: A numpy array of size (NUMFRAMES by nfilt) containing features. Each row holds 1 feature vector.
     """
-    feat,energy = fbank(signal,samplerate,winlen,winstep,nfilt,nfft,lowfreq,highfreq,preemph)
+    feat = fbank(signal,samplerate,winlen,winstep,nfilt,nfft,lowfreq,highfreq,preemph)
     return numpy.log(feat)
 
 def hz2mel(hz):

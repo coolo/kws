@@ -20,7 +20,7 @@ iOS, or Raspberry Pi example code. Here's an example of how to run it:
 
 bazel run tensorflow/examples/speech_commands/freeze -- \
 --sample_rate=16000 --dct_coefficient_count=40 --window_size_ms=20 \
---window_stride_ms=10 --clip_duration_ms=1000 \
+--window_stride_ms=10 \
 --model_architecture=conv \
 --start_checkpoint=/tmp/speech_commands_train/conv.ckpt-1300 \
 --output_file=/tmp/my_frozen_graph.pb
@@ -51,21 +51,18 @@ import models
 from tensorflow.python.framework import graph_util
 
 FLAGS = None
+CLIP_DURATION_MS = 1000
 
-
-def create_inference_graph(wanted_words, sample_rate, clip_duration_ms,
-                           clip_stride_ms, window_size_ms, window_stride_ms,
-                           dct_coefficient_count, model_architecture, model_size_info):
+def create_inference_graph(sample_rate, 
+                           window_size_ms, window_stride_ms,
+                           dct_coefficient_count, model_size_info):
   """Creates an audio model with the nodes needed for inference.
 
   Uses the supplied arguments to create a model, and inserts the input and
   output nodes that are needed to use the graph for inference.
 
   Args:
-    wanted_words: Comma-separated list of the words we're trying to recognize.
     sample_rate: How many samples per second are in the input audio files.
-    clip_duration_ms: How many samples to analyze for the audio pattern.
-    clip_stride_ms: How often to run recognition. Useful for models with cache.
     window_size_ms: Time slice duration to estimate frequencies from.
     window_stride_ms: How far apart time slices should be.
     dct_coefficient_count: Number of frequency bands to analyze.
@@ -73,9 +70,8 @@ def create_inference_graph(wanted_words, sample_rate, clip_duration_ms,
   """
 
   model_settings = models.prepare_model_settings(2,
-      sample_rate, clip_duration_ms, window_size_ms,
+      sample_rate, CLIP_DURATION_MS, window_size_ms,
       window_stride_ms, dct_coefficient_count)
-  runtime_settings = {'clip_stride_ms': clip_stride_ms}
 
   input_frequency_size = model_settings['dct_coefficient_count']
   input_time_size = model_settings['spectrogram_length']
@@ -84,8 +80,7 @@ def create_inference_graph(wanted_words, sample_rate, clip_duration_ms,
       tf.float32, [None, input_time_size, input_frequency_size, 1], name='fingerprint_4d')
 
   logits = models.create_model(
-      fingerprint_input, model_settings, model_architecture, model_size_info, is_training=False,
-      runtime_settings=runtime_settings)
+      fingerprint_input, model_settings, model_size_info, is_training=False)
 
   # Create an output to use for inference.
   tf.nn.softmax(logits, name='labels_softmax')
@@ -95,12 +90,10 @@ def main(_):
 
   # Create the model and load its weights.
   sess = tf.InteractiveSession()
-  create_inference_graph(FLAGS.wanted_words, FLAGS.sample_rate,
-                         FLAGS.clip_duration_ms, FLAGS.clip_stride_ms,
+  create_inference_graph(FLAGS.sample_rate,
                          FLAGS.window_size_ms, FLAGS.window_stride_ms,
-                         FLAGS.dct_coefficient_count, FLAGS.model_architecture, FLAGS.model_size_info)
-  models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
-
+                         FLAGS.dct_coefficient_count, FLAGS.model_size_info)
+ 
   for v in tf.trainable_variables():
     var_name = str(v.name)
     var_values = sess.run(v)
@@ -140,16 +133,6 @@ if __name__ == '__main__':
       default=16000,
       help='Expected sample rate of the wavs',)
   parser.add_argument(
-      '--clip_duration_ms',
-      type=int,
-      default=1000,
-      help='Expected duration in milliseconds of the wavs',)
-  parser.add_argument(
-      '--clip_stride_ms',
-      type=int,
-      default=30,
-      help='How often to run recognition. Useful for models with cache.',)
-  parser.add_argument(
       '--window_size_ms',
       type=float,
       default=30.0,
@@ -164,21 +147,6 @@ if __name__ == '__main__':
       type=int,
       default=40,
       help='How many bins to use for the MFCC fingerprint',)
-  parser.add_argument(
-      '--start_checkpoint',
-      type=str,
-      default='',
-      help='If specified, restore this pretrained model before any training.')
-  parser.add_argument(
-      '--model_architecture',
-      type=str,
-      default='conv',
-      help='What model architecture to use')
-  parser.add_argument(
-      '--wanted_words',
-      type=str,
-      default='yes,no,up,down,left,right,on,off,stop,go',
-      help='Words to use (others will be added to an unknown label)',)
   parser.add_argument(
       '--model_size_info',
       type=int,

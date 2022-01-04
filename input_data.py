@@ -135,7 +135,6 @@ class AudioProcessor(object):
     # Data and labels will be populated and returned.
     data = np.zeros((sample_count, model_settings['spectrogram_length'], model_settings['dct_coefficient_count'], 1))
     labels = np.zeros((sample_count,2))
-    desired_samples = model_settings['desired_samples']
     pick_deterministically = (mode != 'training')
     # Use the processing graph we created earlier to repeatedly to generate the
     # final output sample data we'll use in training.
