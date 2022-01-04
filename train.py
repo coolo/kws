@@ -78,14 +78,7 @@ def main(_):
   # Define loss and optimizer
   ground_truth_input = tf.compat.v1.placeholder(
       tf.float32, [None, 2], name='groundtruth_input')
-
-  # Optionally we can add runtime checks to spot when NaNs or other symptoms of
-  # numerical errors start occurring during training.
-  control_dependencies = []
-  if FLAGS.check_nans:
-    checks = tf.add_check_numerics_ops()
-    control_dependencies = [checks]
-
+  
   # Create the back propagation and training evaluation machinery in the graph.
   with tf.name_scope('cross_entropy'):
     cross_entropy_mean = tf.reduce_mean(
@@ -94,7 +87,7 @@ def main(_):
   tf.compat.v1.summary.scalar('cross_entropy', cross_entropy_mean)
   
   update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
-  with tf.name_scope('train'), tf.control_dependencies(update_ops), tf.control_dependencies(control_dependencies):
+  with tf.name_scope('train'), tf.control_dependencies(update_ops):
     learning_rate_input = tf.compat.v1.placeholder(
         tf.float32, [], name='learning_rate_input')
     train_op = tf.compat.v1.train.AdamOptimizer(
@@ -245,7 +238,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--eval_step_interval',
       type=int,
-      default=400,
+      default=200,
       help='How often to evaluate the training results.')
   parser.add_argument(
       '--learning_rate',
@@ -273,11 +266,6 @@ if __name__ == '__main__':
       nargs="+",
       default=[128,128,128],
       help='Model dimensions - different for various models')
-  parser.add_argument(
-      '--check_nans',
-      type=bool,
-      default=False,
-      help='Whether to check for invalid numbers during processing')
 
   FLAGS, unparsed = parser.parse_known_args()
   tf.compat.v1.app.run(main=main, argv=[sys.argv[0]] + unparsed)
