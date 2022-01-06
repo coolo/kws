@@ -119,8 +119,7 @@ def create_model(fingerprint_4d, model_settings, is_training):
   first_fc_weights = tf.compat.v1.get_variable('fcw', shape=[flow_dim,
     first_fc_output_channels],
     initializer=tf.keras.initializers.glorot_normal())
-  first_fc_bias = tf.Variable(tf.zeros([first_fc_output_channels]))
-  first_fc = tf.nn.relu(tf.matmul(flow, first_fc_weights) + first_fc_bias)
+  first_fc = tf.nn.relu(tf.matmul(flow, first_fc_weights))
   if is_training:
     final_fc_input = tf.nn.dropout(first_fc, rate=dropout_rate)
   else:
@@ -130,8 +129,7 @@ def create_model(fingerprint_4d, model_settings, is_training):
       tf.random.truncated_normal(
           [first_fc_output_channels, 2], stddev=0.01))
 
-  final_fc_bias = tf.Variable(tf.zeros([2]))
-  final_fc = tf.matmul(final_fc_input, final_fc_weights) + final_fc_bias
+  final_fc = tf.matmul(final_fc_input, final_fc_weights)
   if is_training:
      return final_fc, dropout_rate
   else:
