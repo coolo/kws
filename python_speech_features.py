@@ -50,41 +50,6 @@ def framesig(sig, frame_len, frame_step, winfunc=lambda x: numpy.ones((x,)), str
     return frames * win
 
 
-def deframesig(frames, siglen, frame_len, frame_step, winfunc=lambda x: numpy.ones((x,))):
-    """Does overlap-add procedure to undo the action of framesig.
-
-    :param frames: the array of frames.
-    :param siglen: the length of the desired signal, use 0 if unknown. Output will be truncated to siglen samples.
-    :param frame_len: length of each frame measured in samples.
-    :param frame_step: number of samples after the start of the previous frame that the next frame should begin.
-    :param winfunc: the analysis window to apply to each frame. By default no window is applied.
-    :returns: a 1-D signal.
-    """
-    frame_len = round_half_up(frame_len)
-    frame_step = round_half_up(frame_step)
-    numframes = numpy.shape(frames)[0]
-    assert numpy.shape(frames)[1] == frame_len, '"frames" matrix is wrong size, 2nd dim is not equal to frame_len'
-
-    indices = numpy.tile(numpy.arange(0, frame_len), (numframes, 1)) + numpy.tile(
-        numpy.arange(0, numframes * frame_step, frame_step), (frame_len, 1)).T
-    indices = numpy.array(indices, dtype=numpy.int32)
-    padlen = (numframes - 1) * frame_step + frame_len
-
-    if siglen <= 0: siglen = padlen
-
-    rec_signal = numpy.zeros((padlen,))
-    window_correction = numpy.zeros((padlen,))
-    win = winfunc(frame_len)
-
-    for i in range(0, numframes):
-        window_correction[indices[i, :]] = window_correction[
-                                               indices[i, :]] + win + 1e-15  # add a little bit so it is never zero
-        rec_signal[indices[i, :]] = rec_signal[indices[i, :]] + frames[i, :]
-
-    rec_signal = rec_signal / window_correction
-    return rec_signal[0:siglen]
-
-
 def magspec(frames, NFFT):
     """Compute the magnitude spectrum of each frame in frames. If frames is an NxD matrix, output will be Nx(NFFT/2+1).
 
