@@ -186,7 +186,9 @@ def main(_):
         saver.save(sess, checkpoint_path, global_step=training_step)
       logging.info('So far the best validation accuracy is %.2f%%' % (best_accuracy*100))
 
-    
+      if os.path.exists('stop'):
+          os.remove('stop')
+          break
 
 
 if __name__ == '__main__':

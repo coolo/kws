@@ -47,48 +47,27 @@ import models
 from tensorflow.python.framework import graph_util
 
 FLAGS = None
-CLIP_DURATION_MS = 1000
 
-def create_inference_graph(sample_rate,
-                           window_stride_ms,
-                           dct_coefficient_count, model_size_info):
-  """Creates an audio model with the nodes needed for inference.
+def main(args):
 
-  Uses the supplied arguments to create a model, and inserts the input and
-  output nodes that are needed to use the graph for inference.
+  # Create the model and load its weights.
+  sess = tf.InteractiveSession()
 
-  Args:
-    sample_rate: How many samples per second are in the input audio files.
-    window_stride_ms: How far apart time slices should be.
-    dct_coefficient_count: Number of frequency bands to analyze.
-    model_architecture: Name of the kind of model to generate.
-  """
-
-  model_settings = models.prepare_model_settings(2,
-      sample_rate, CLIP_DURATION_MS,
-      window_stride_ms, dct_coefficient_count)
-
+  model_settings = models.prepare_model_settings(FLAGS.dct_coefficient_count)
   input_frequency_size = model_settings['dct_coefficient_count']
   input_time_size = model_settings['spectrogram_length']
 
   fingerprint_input = tf.placeholder(
       tf.float32, [None, input_time_size, input_frequency_size, 1], name='fingerprint_4d')
 
-  logits = models.create_model(
-      fingerprint_input, model_settings, model_size_info, is_training=False)
+  logits = models.create_model( fingerprint_input, model_settings, is_training=False)
 
   # Create an output to use for inference.
-  tf.nn.softmax(logits, name='labels_softmax')
+  output = tf.nn.softmax(logits, name='labels_softmax')
 
+  saver = tf.train.Saver(tf.global_variables())
+  saver.restore(sess, args[1])
 
-def main(_):
-
-  # Create the model and load its weights.
-  sess = tf.InteractiveSession()
-  create_inference_graph(FLAGS.sample_rate,
-                         FLAGS.window_stride_ms,
-                         FLAGS.dct_coefficient_count, FLAGS.model_size_info)
- 
   for v in tf.trainable_variables():
     var_name = str(v.name)
     var_values = sess.run(v)
@@ -117,25 +96,23 @@ def main(_):
       os.path.dirname(FLAGS.output_file),
       os.path.basename(FLAGS.output_file),
       as_text=False)
+  converter = tf.compat.v1.lite.TFLiteConverter.from_frozen_graph(
+    graph_def_file=FLAGS.output_file,
+    input_arrays=['fingerprint_4d'],
+    input_shapes={'fingerprint_4d' : [1, 99,36, 1]},
+    output_arrays=['labels_softmax'],
+  )
+  converter.optimizations = {tf.lite.Optimize.DEFAULT}
+  converter.change_concat_input_ranges = True
+  tflite_model = converter.convert()
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument(
-      '--window_stride_ms',
-      type=float,
-      default=10.0,
-      help='How long the stride is between spectrogram timeslices',)
   parser.add_argument(
       '--dct_coefficient_count',
       type=int,
       default=40,
       help='How many bins to use for the MFCC fingerprint',)
-  parser.add_argument(
-      '--model_size_info',
-      type=int,
-      nargs="+",
-      default=[128,128,128],
-      help='Model dimensions - different for various models')
   parser.add_argument(
       '--output_file', type=str, help='Where to save the frozen graph.')
   FLAGS, unparsed = parser.parse_known_args()

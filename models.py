@@ -69,7 +69,8 @@ def create_model(fingerprint_4d, model_settings, is_training):
   Optionally, the bi-directional GRUs and/or GRU with layer-normalization
     can be explored.
   """
-  dropout_rate = tf.compat.v1.placeholder(tf.float32, name='dropout_rate')
+  if is_training:
+    dropout_rate = tf.compat.v1.placeholder(tf.float32, name='dropout_rate')
   input_frequency_size = model_settings['dct_coefficient_count']
   input_time_size = model_settings['spectrogram_length']
 
@@ -84,10 +85,9 @@ def create_model(fingerprint_4d, model_settings, is_training):
                     first_filter_width, 1, first_filter_count],
     initializer=tf.keras.initializers.glorot_normal())
 
-  first_bias = tf.Variable(tf.zeros([first_filter_count]))
   first_conv = tf.nn.conv2d(fingerprint_4d, first_weights, [
       1, first_filter_stride_y, first_filter_stride_x, 1
-  ], 'VALID') + first_bias
+  ], 'VALID')
   first_relu = tf.nn.relu(first_conv)
   if is_training:
     first_dropout = tf.nn.dropout(first_relu, rate=dropout_rate)
@@ -132,4 +132,7 @@ def create_model(fingerprint_4d, model_settings, is_training):
 
   final_fc_bias = tf.Variable(tf.zeros([2]))
   final_fc = tf.matmul(final_fc_input, final_fc_weights) + final_fc_bias
-  return final_fc, dropout_rate
+  if is_training:
+     return final_fc, dropout_rate
+  else:
+     return final_fc
