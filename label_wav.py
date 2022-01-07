@@ -54,8 +54,8 @@ class bcolors:
 
 def load_graph(filename):
   """Unpersists graph from file as default graph."""
-  with tf.gfile.FastGFile(filename, 'rb') as f:
-    graph_def = tf.GraphDef()
+  with tf.compat.v1.gfile.FastGFile(filename, 'rb') as f:
+    graph_def = tf.compat.v1.GraphDef()
     graph_def.ParseFromString(f.read())
     tf.import_graph_def(graph_def, name='')
 
@@ -67,7 +67,7 @@ def load_labels(filename):
 
 def run_graph(wav_glob, output_layer_name):
   """Runs the audio data through the graph and prints predictions."""
-  with tf.Session() as sess:
+  with tf.compat.v1.Session() as sess:
     # Feed the audio data as input to the graph.
     #   predictions  will contain a two-dimensional array, where one
     #   dimension represents the input image count, and the other has
@@ -113,4 +113,4 @@ if __name__ == '__main__':
       help='Name of node outputting a prediction in the model.')
 
   FLAGS, unparsed = parser.parse_known_args()
-  tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+  tf.compat.v1.app.run(main=main, argv=[sys.argv[0]] + unparsed)

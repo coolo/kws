@@ -38,6 +38,8 @@ def main(_):
   logger = tf.get_logger()
   logger.setLevel('INFO')
 
+  tf.compat.v1.disable_eager_execution()
+
   # Start a new TensorFlow session.
   sess = tf.compat.v1.InteractiveSession()
 
@@ -69,10 +71,7 @@ def main(_):
   fingerprint_input = tf.compat.v1.placeholder(
       tf.float32, [None, input_time_size, input_frequency_size, 1], name='fingerprint_4d')
 
-  logits, dropout_rate = models.create_model(
-      fingerprint_input,
-      model_settings,
-      is_training=True)
+  logits = models.create_model(fingerprint_input, model_settings)
 
   # Define loss and optimizer
   ground_truth_input = tf.compat.v1.placeholder(
@@ -81,7 +80,7 @@ def main(_):
   # Create the back propagation and training evaluation machinery in the graph.
   with tf.name_scope('cross_entropy'):
     cross_entropy_mean = tf.reduce_mean(
-        tf.nn.softmax_cross_entropy_with_logits_v2(
+        tf.compat.v1.nn.softmax_cross_entropy_with_logits_v2(
             labels=ground_truth_input, logits=logits))
   tf.compat.v1.summary.scalar('cross_entropy', cross_entropy_mean)
   
@@ -144,8 +143,7 @@ def main(_):
         feed_dict={
             fingerprint_input: train_fingerprints,
             ground_truth_input: train_ground_truth,
-            learning_rate_input: learning_rate_value,
-            dropout_rate: 0
+            learning_rate_input: learning_rate_value
         })
     logging.info('Step #%d: rate %f, accuracy %.2f%%, cross entropy %f' %
                     (training_step, learning_rate_value, train_accuracy * 100,
@@ -165,7 +163,6 @@ def main(_):
             feed_dict={
                 fingerprint_input: validation_fingerprints,
                 ground_truth_input: validation_ground_truth,
-                dropout_rate: 0
             })
         batch_size = min(FLAGS.batch_size, set_size - i)
         total_accuracy += (validation_accuracy * batch_size) / set_size

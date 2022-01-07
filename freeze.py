@@ -41,8 +41,6 @@ import sys
 import tensorflow as tf
 import numpy as np
 
-from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
-import input_data
 import models
 from tensorflow.python.framework import graph_util
 
@@ -50,25 +48,27 @@ FLAGS = None
 
 def main(args):
 
-  # Create the model and load its weights.
-  sess = tf.InteractiveSession()
+  tf.compat.v1.disable_eager_execution()
+
+  # Start a new TensorFlow session.
+  sess = tf.compat.v1.InteractiveSession()
 
   model_settings = models.prepare_model_settings(FLAGS.dct_coefficient_count)
   input_frequency_size = model_settings['dct_coefficient_count']
   input_time_size = model_settings['spectrogram_length']
 
-  fingerprint_input = tf.placeholder(
+  fingerprint_input = tf.compat.v1.placeholder(
       tf.float32, [None, input_time_size, input_frequency_size, 1], name='fingerprint_4d')
 
-  logits = models.create_model( fingerprint_input, model_settings, is_training=False)
+  logits = models.create_model( fingerprint_input, model_settings)
 
   # Create an output to use for inference.
   output = tf.nn.softmax(logits, name='labels_softmax')
 
-  saver = tf.train.Saver(tf.global_variables())
+  saver = tf.compat.v1.train.Saver(tf.compat.v1.global_variables())
   saver.restore(sess, args[1])
 
-  for v in tf.trainable_variables():
+  for v in tf.compat.v1.trainable_variables():
     var_name = str(v.name)
     var_values = sess.run(v)
     min_value = var_values.min()
@@ -82,7 +82,7 @@ def main(args):
     # convert back original range but quantized to 8-bits or 256 levels
     var_values = var_values/(2**dec_bits)
     # update the weights in tensorflow graph for quantizing the activations
-    var_values = sess.run(tf.assign(v,var_values))
+    var_values = sess.run(tf.compat.v1.assign(v,var_values))
     print(var_name+' number of wts/bias: '+str(var_values.shape)+\
             ' dec bits: '+str(dec_bits)+\
             ' max: ('+str(var_values.max())+','+str(max_value)+')'+\
@@ -91,7 +91,7 @@ def main(args):
   # Turn all the variables into inline constants inside the graph and save it.
   frozen_graph_def = graph_util.convert_variables_to_constants(
       sess, sess.graph_def, ['labels_softmax'])
-  tf.train.write_graph(
+  tf.io.write_graph(
       frozen_graph_def,
       os.path.dirname(FLAGS.output_file),
       os.path.basename(FLAGS.output_file),
@@ -116,4 +116,4 @@ if __name__ == '__main__':
   parser.add_argument(
       '--output_file', type=str, help='Where to save the frozen graph.')
   FLAGS, unparsed = parser.parse_known_args()
-  tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+  tf.compat.v1.app.run(main=main, argv=[sys.argv[0]] + unparsed)
