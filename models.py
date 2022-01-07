@@ -70,7 +70,7 @@ def create_model(fingerprint_4d, model_settings):
   flow = tf.keras.layers.Conv2D(first_filter_count, kernel_size=(first_filter_height,first_filter_width),
         strides=(first_filter_stride_y, first_filter_stride_x), padding='valid', activation='relu', name='conv1')(fingerprint_4d)
 
-  flow = tf.keras.layers.Dropout(0.8)(flow)
+  flow = tf.keras.layers.Dropout(0.3)(flow)
 
   first_conv_output_width = int(math.floor(
       (input_frequency_size - first_filter_width + first_filter_stride_x) /
@@ -93,10 +93,10 @@ def create_model(fingerprint_4d, model_settings):
   first_fc_output_channels = 30
 
   flow = tf.keras.layers.Dense(first_fc_output_channels, activation='relu')(flow)
-  flow = tf.keras.layers.Dropout(0.8)(flow)
+  flow = tf.keras.layers.Dropout(0.1)(flow)
 
   # Output layer
   flow = tf.keras.layers.Dense(2)(flow)
-  flow = tf.keras.layers.Softmax()(flow)
+  flow = tf.keras.layers.Softmax(name='logits')(flow)
 
   return flow

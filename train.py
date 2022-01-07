@@ -38,11 +38,6 @@ def main(_):
   logger = tf.get_logger()
   logger.setLevel('INFO')
 
-  tf.compat.v1.disable_eager_execution()
-
-  # Start a new TensorFlow session.
-  sess = tf.compat.v1.InteractiveSession()
-
   # Begin by making sure we have the training data we need. If you already have
   # training data of your own, use `--data_url= ` on the command line to avoid
   # downloading.
@@ -50,143 +45,25 @@ def main(_):
   audio_processor = input_data.AudioProcessor(
       FLAGS.data_good, FLAGS.data_bad, 
       FLAGS.validation_percentage, model_settings)
-  # Figure out the learning rates for each training phase. Since it's often
-  # effective to have high learning rates at the start of training, followed by
-  # lower levels towards the end, the number of steps and learning rates can be
-  # specified as comma-separated lists to define the rate at each stage. For
-  # example --how_many_training_steps=10000,3000 --learning_rate=0.001,0.0001
-  # will run 13,000 training loops in total, with a rate of 0.001 for the first
-  # 10,000, and 0.0001 for the final 3,000.
-  training_steps_list = list(map(int, FLAGS.how_many_training_steps.split(',')))
-  learning_rates_list = list(map(float, FLAGS.learning_rate.split(',')))
-  if len(training_steps_list) != len(learning_rates_list):
-    raise Exception(
-        '--how_many_training_steps and --learning_rate must be equal length '
-        'lists, but are %d and %d long instead' % (len(training_steps_list),
-                                                   len(learning_rates_list)))
 
   input_frequency_size = model_settings['dct_coefficient_count']
   input_time_size = model_settings['spectrogram_length']
 
-  fingerprint_input = tf.compat.v1.placeholder(
-      tf.float32, [None, input_time_size, input_frequency_size, 1], name='fingerprint_4d')
+  inputs = tf.keras.Input(shape=(input_time_size, input_frequency_size, 1), name="fingerprint_4d")
+  logits = models.create_model(inputs, model_settings)
+  model = tf.keras.Model(inputs=inputs, outputs=logits)
+  model.summary()
 
-  logits = models.create_model(fingerprint_input, model_settings)
+  # Instantiate an optimizer.
+  optimizer = tf.keras.optimizers.Adam(learning_rate=0.007)
+  model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=["accuracy"])
+  model.save('saved.model')
 
-  # Define loss and optimizer
-  ground_truth_input = tf.compat.v1.placeholder(
-      tf.float32, [None, 2], name='groundtruth_input')
-  
-  # Create the back propagation and training evaluation machinery in the graph.
-  with tf.name_scope('cross_entropy'):
-    cross_entropy_mean = tf.reduce_mean(
-        tf.compat.v1.nn.softmax_cross_entropy_with_logits_v2(
-            labels=ground_truth_input, logits=logits))
-  tf.compat.v1.summary.scalar('cross_entropy', cross_entropy_mean)
-  
-  update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
-  with tf.name_scope('train'), tf.control_dependencies(update_ops):
-    learning_rate_input = tf.compat.v1.placeholder(
-        tf.float32, [], name='learning_rate_input')
-    train_op = tf.compat.v1.train.AdamOptimizer(
-        learning_rate_input)
-    train_step = slim.learning.create_train_op(cross_entropy_mean, train_op)
-  predicted_indices = tf.argmax(logits, 1)
-  expected_indices = tf.argmax(ground_truth_input, 1)
-  correct_prediction = tf.equal(predicted_indices, expected_indices)
-  confusion_matrix = tf.math.confusion_matrix(
-      expected_indices, predicted_indices, num_classes=2)
-  evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-
-  global_step = tf.compat.v1.train.get_or_create_global_step()
-  increment_global_step = tf.compat.v1.assign(global_step, global_step + 1)
-
-  saver = tf.compat.v1.train.Saver(tf.compat.v1.global_variables())
-
-  # Merge all the summaries and write them out to /tmp/retrain_logs (by default)
-  merged_summaries = tf.compat.v1.summary.merge_all()
- 
-  tf.compat.v1.global_variables_initializer().run()
-
-  # Parameter counts
-  params = tf.compat.v1.trainable_variables()
-  num_params = sum(map(lambda t: np.prod(tf.shape(t.value()).eval()), params))
-  print('Total number of Parameters: ', num_params)
-
-  start_step = 1
-  logging.info('Training from step: %d ', start_step)
-
-  # Save graph.pbtxt.
-  tf.io.write_graph(sess.graph_def, FLAGS.train_dir,
-                       'crnn.pbtxt')
-
-  # Training loop.
-  best_accuracy = 0
-  training_steps_max = np.sum(training_steps_list)
-  for training_step in range(start_step, training_steps_max + 1):
-    # Figure out what the current learning rate is.
-    training_steps_sum = 0
-    for i in range(len(training_steps_list)):
-      training_steps_sum += training_steps_list[i]
-      if training_step <= training_steps_sum:
-        learning_rate_value = learning_rates_list[i]
-        break
-    # Pull the audio samples we'll use for training.
-    train_fingerprints, train_ground_truth = audio_processor.get_data(
-        FLAGS.batch_size, 0, model_settings, 'training')
-    # Run the graph with this batch of training data.
-    train_summary, train_accuracy, cross_entropy_value, _, _ = sess.run(
-        [
-            merged_summaries, evaluation_step, cross_entropy_mean, train_step,
-            increment_global_step
-        ],
-        feed_dict={
-            fingerprint_input: train_fingerprints,
-            ground_truth_input: train_ground_truth,
-            learning_rate_input: learning_rate_value
-        })
-    logging.info('Step #%d: rate %f, accuracy %.2f%%, cross entropy %f' %
-                    (training_step, learning_rate_value, train_accuracy * 100,
-                     cross_entropy_value))
-    is_last_step = (training_step == training_steps_max)
-    if (training_step % FLAGS.eval_step_interval) == 0 or is_last_step:
-      set_size = audio_processor.set_size('validation')
-      total_accuracy = 0
-      total_conf_matrix = None
-      for i in range(0, set_size, FLAGS.batch_size):
-        validation_fingerprints, validation_ground_truth = (
-            audio_processor.get_data(FLAGS.batch_size, i, model_settings, 'validation'))
-        # Run a validation step and capture training summaries for TensorBoard
-        # with the `merged` op.
-        validation_summary, validation_accuracy, conf_matrix = sess.run(
-            [merged_summaries, evaluation_step, confusion_matrix],
-            feed_dict={
-                fingerprint_input: validation_fingerprints,
-                ground_truth_input: validation_ground_truth,
-            })
-        batch_size = min(FLAGS.batch_size, set_size - i)
-        total_accuracy += (validation_accuracy * batch_size) / set_size
-        if total_conf_matrix is None:
-          total_conf_matrix = conf_matrix
-        else:
-          total_conf_matrix += conf_matrix
-      logging.info('Confusion Matrix:\n %s' % (total_conf_matrix))
-      logging.info('Step %d: Validation accuracy = %.2f%% (N=%d)' %
-                      (training_step, total_accuracy * 100, set_size))
-
-      # Save the model checkpoint when validation accuracy improves
-      if total_accuracy >= best_accuracy:
-        best_accuracy = total_accuracy
-        checkpoint_path = os.path.join(FLAGS.train_dir, 'best',
-                                       'crnn_'+ str(int(best_accuracy*10000)) + '.ckpt')
-        logging.info('Saving best model to "%s-%d"', checkpoint_path, training_step)
-        saver.save(sess, checkpoint_path, global_step=training_step)
-      logging.info('So far the best validation accuracy is %.2f%%' % (best_accuracy*100))
-
-      if os.path.exists('stop'):
-          os.remove('stop')
-          break
-
+  earlystop= tf.keras.callbacks.EarlyStopping(monitor='loss', patience=400, restore_best_weights=True)
+  reducelr = tf.keras.callbacks.ReduceLROnPlateau(patience=300, monitor='loss', min_lr=1.0000e-08)
+  saver = tf.keras.callbacks.ModelCheckpoint(filepath='saved.model.weighs.{loss:.5f}-{epoch:04d}.h5',  save_weights_only=True, save_best_only=True, monitor='accuracy')
+  x_train, y_train = audio_processor.get_data( -1, 0, model_settings, 'training')
+  model.fit(x_train, y_train, epochs=10000, batch_size=FLAGS.batch_size, callbacks=[earlystop,reducelr,saver])
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
@@ -224,11 +101,6 @@ if __name__ == '__main__':
       type=int,
       default=200,
       help='How often to evaluate the training results.')
-  parser.add_argument(
-      '--learning_rate',
-      type=str,
-      default='0.001,0.0001',
-      help='How large a learning rate to use when training.')
   parser.add_argument(
       '--batch_size',
       type=int,

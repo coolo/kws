@@ -67,8 +67,6 @@ class AudioProcessor(object):
                      nfft=1024)
         all_files.append({'label': label, 'file': wav_path, 'mels': mel[:model_settings['spectrogram_length']]})
         w.close()
-    # Make sure the ordering is random.
-    random.shuffle(all_files)
 
     num_vali = int(len(all_files) * validation_percentage / 100.)
     for e in all_files:
@@ -79,6 +77,10 @@ class AudioProcessor(object):
            num_vali -= 1
            continue
        self.data_index[ds].append(e)
+
+    # Make sure the ordering is random.
+    random.shuffle(self.data_index['training'])
+
 
   def set_size(self, mode):
     """Calculates the number of samples in the dataset partition.
@@ -120,6 +122,7 @@ class AudioProcessor(object):
       sample_count = max(0, min(how_many, len(candidates) - offset))
     # Data and labels will be populated and returned.
     data = np.zeros((sample_count, model_settings['spectrogram_length'], model_settings['dct_coefficient_count'], 1))
+    #labels = np.zeros((sample_count), dtype=np.int32)
     labels = np.zeros((sample_count,2))
     pick_deterministically = (mode != 'training')
     # Use the processing graph we created earlier to repeatedly to generate the
@@ -134,6 +137,7 @@ class AudioProcessor(object):
       #print(model_settings, sample['mels'].shape)
       # Run the graph to produce the output audio.
       data[i] = np.reshape(sample['mels'][:model_settings['spectrogram_length']], (model_settings['spectrogram_length'], model_settings['dct_coefficient_count'], 1))
+      #labels[i] = sample['label']
       labels[i][sample['label']] = 1
     return data, labels
 
