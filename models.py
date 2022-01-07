@@ -67,14 +67,11 @@ def create_model(fingerprint_4d, model_settings):
   first_filter_stride_y = 3
   first_filter_stride_x = 2
 
-  first_weights = tf.compat.v1.get_variable('W', shape=[first_filter_height,
-                    first_filter_width, 1, first_filter_count],
-    initializer=tf.keras.initializers.glorot_normal())
+  flow = tf.keras.layers.Conv2D(first_filter_count, kernel_size=(first_filter_height,first_filter_width),
+        strides=(first_filter_stride_y, first_filter_stride_x), padding='valid', activation='relu', name='conv1')(fingerprint_4d)
 
-  first_conv = tf.nn.conv2d(fingerprint_4d, first_weights, [
-      1, first_filter_stride_y, first_filter_stride_x, 1
-  ], 'VALID')
-  first_relu = tf.nn.relu(first_conv)
+  flow = tf.keras.layers.Dropout(0.8)(flow)
+
   first_conv_output_width = int(math.floor(
       (input_frequency_size - first_filter_width + first_filter_stride_x) /
       first_filter_stride_x))
@@ -85,28 +82,21 @@ def create_model(fingerprint_4d, model_settings):
   # GRU part
   num_rnn_layers = 2
   RNN_units = 91
-  flow = tf.reshape(first_relu, [-1, first_conv_output_height,
-           first_conv_output_width * first_filter_count])
+  flow = tf.keras.layers.Reshape((first_conv_output_height, first_conv_output_width * first_filter_count))(flow)
   cells = []
   for _ in range(num_rnn_layers):
     cells.append(tf.keras.layers.GRUCell(RNN_units))
 
   cells = tf.keras.layers.StackedRNNCells(cells)
-  last = tf.keras.layers.RNN(cells)(flow)
-
-  flow_dim = RNN_units
-  flow = last
+  flow = tf.keras.layers.RNN(cells)(flow)
 
   first_fc_output_channels = 30
 
-  first_fc_weights = tf.compat.v1.get_variable('fcw', shape=[flow_dim,
-    first_fc_output_channels],
-    initializer=tf.keras.initializers.glorot_normal())
-  first_fc = tf.nn.relu(tf.matmul(flow, first_fc_weights))
+  flow = tf.keras.layers.Dense(first_fc_output_channels, activation='relu')(flow)
+  flow = tf.keras.layers.Dropout(0.8)(flow)
 
-  final_fc_weights = tf.Variable(
-      tf.random.truncated_normal(
-          [first_fc_output_channels, 2], stddev=0.01))
+  # Output layer
+  flow = tf.keras.layers.Dense(2)(flow)
+  flow = tf.keras.layers.Softmax()(flow)
 
-  final_fc = tf.matmul(first_fc, final_fc_weights)
-  return final_fc
+  return flow
