@@ -30,7 +30,7 @@ python tensorflow/examples/speech_commands/label_wav.py \
 
 import tensorflow as tf
 import argparse
-import sys
+import time
 import numpy as np
 import glob
 import wave
@@ -38,6 +38,7 @@ import struct
 from python_speech_features import logfbank
 
 FLAGS = None
+
 
 class bcolors:
     HEADER = '\033[95m'
@@ -49,52 +50,78 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-def run_graph(model, wav_glob, output_layer_name):
+
+def run_tflite(tflite_model, wav_glob):
     # Feed the audio data as input to the graph.
     #   predictions  will contain a two-dimensional array, where one
     #   dimension represents the input image count, and the other has
     #   predictions per class
 
+    interpreter = tf.lite.Interpreter(model_content=tflite_model)
+    interpreter.allocate_tensors()  # Needed before execution!
+
     for wav_path in sorted(glob.glob(wav_glob)):
         w = wave.open(wav_path)
         astr = w.readframes(w.getframerate())
-        # convert binary chunks to short 
-        a = struct.unpack("%ih" % (w.getframerate()* w.getnchannels()), astr)
+        # convert binary chunks to short
+        a = struct.unpack("%ih" % (w.getframerate() * w.getnchannels()), astr)
         a = [float(val) / pow(2, 15) for val in a]
-        wav_data=np.array(a,dtype=float)
-        nfft=1024
-        mels=logfbank(wav_data, w.getframerate(), lowfreq=50.0, highfreq=4200.0,nfilt=36,winlen=0.020, winstep=0.010, nfft=nfft)
+        wav_data = np.array(a, dtype=float)
+        nfft = 1024
+        mels = logfbank(wav_data, w.getframerate(), lowfreq=50.0,
+                        highfreq=4200.0, nfilt=36, winlen=0.020, winstep=0.010, nfft=nfft)
         np.set_printoptions(threshold=np.inf)
-        input_data = np.float32(np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1)))
+        input_data = np.float32(np.reshape(
+            mels, (1, mels.shape[0], mels.shape[1], 1)))
 
-        predictions = model.predict(input_data)[0]
-        print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, int(predictions[1] * 100 + 0.5), wav_path, bcolors.ENDC)
+        output = interpreter.get_output_details()[0]  # Model has single output.
+        input = interpreter.get_input_details()[0]  # Model has single input.
+        interpreter.set_tensor(input['index'], input_data)
+        interpreter.invoke()
+
+        predictions = interpreter.get_tensor(output["index"])[0]
+        print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, int(
+            predictions[1] * 100 / 255 + 0.5), wav_path, bcolors.ENDC)
     return 0
 
-def label_wav(wav, graph, output_name):
-  """Loads the model and labels, and runs the inference to print predictions."""
-  # load graph, which is stored in the default session
-  model = tf.keras.models.load_model('saved.model')
-  model.load_weights(FLAGS.graph)
 
-  run_graph(model, wav, output_name)
+def label_wav(wav, graph):
+    """Loads the model and labels, and runs the inference to print predictions."""
+    # load graph, which is stored in the default session
+    model = tf.keras.models.load_model('saved.model')
+    model.load_weights(graph)
+    model.summary()
+
+    data = np.load('all-waves.npz', mmap_mode='r')
+    dataset = tf.data.Dataset.from_tensor_slices(data['x'])
+
+    def representative_dataset():
+        for data in dataset.batch(1).take(300):
+            yield [tf.dtypes.cast(data, tf.float32)]
+
+    converter = tf.lite.TFLiteConverter.from_keras_model(model)
+    converter.inference_output_type = tf.uint8
+    converter.representative_dataset = representative_dataset
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.target_spec.supported_ops = [
+        tf.lite.OpsSet.TFLITE_BUILTINS, tf.lite.OpsSet.SELECT_TF_OPS]
+    converter._experimental_lower_tensor_list_ops = False
+
+    tflite_model = converter.convert()
+    run_tflite(tflite_model, wav)
 
 
 def main(_):
-  """Entry point for script, converts flags to arguments."""
-  label_wav(FLAGS.wav, FLAGS.graph, FLAGS.output_name)
+    """Entry point for script, converts flags to arguments."""
+    label_wav(FLAGS.wav, FLAGS.graph)
+
 
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser()
-  parser.add_argument(
-      '--wav', type=str, default='', help='Audio file to be identified.')
-  parser.add_argument(
-      '--graph', type=str, default='', help='Model to use for identification.')
-  parser.add_argument(
-      '--output_name',
-      type=str,
-      default='labels_softmax:0',
-      help='Name of node outputting a prediction in the model.')
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--wav', type=str, default='', help='Audio file to be identified.')
+    parser.add_argument(
+        '--graph', type=str, default='', help='Model to use for identification.')
 
-  FLAGS, unparsed = parser.parse_known_args()
-  main(unparsed)
+    FLAGS, unparsed = parser.parse_known_args()
+    main(unparsed)

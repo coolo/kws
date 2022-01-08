@@ -56,7 +56,7 @@ def main(_):
   model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=["accuracy"])
   model.save('saved.model')
 
-  earlystop= tf.keras.callbacks.EarlyStopping(monitor='loss', patience=400, restore_best_weights=True)
+  earlystop= tf.keras.callbacks.EarlyStopping(monitor='loss', patience=12, restore_best_weights=True)
   saver = tf.keras.callbacks.ModelCheckpoint(filepath='saved.model.weighs.{loss:.5f}-{epoch:04d}.h5',  save_weights_only=True, save_best_only=True, monitor='accuracy')
   if False:
     audio_processor = input_data.AudioProcessor(
@@ -95,28 +95,13 @@ if __name__ == '__main__':
   parser.add_argument(
       '--dct_coefficient_count',
       type=int,
-      default=40,
+      default=36,
       help='How many bins to use for the MFCC fingerprint',)
-  parser.add_argument(
-      '--how_many_training_steps',
-      type=str,
-      default='15000,3000',
-      help='How many training loops to run',)
-  parser.add_argument(
-      '--eval_step_interval',
-      type=int,
-      default=200,
-      help='How often to evaluate the training results.')
   parser.add_argument(
       '--batch_size',
       type=int,
       default=100,
       help='How many items to train with at once',)
-  parser.add_argument(
-      '--train_dir',
-      type=str,
-      default='/tmp/speech_commands_train',
-      help='Directory to write event logs and checkpoint.')
 
   FLAGS, unparsed = parser.parse_known_args()
   tf.compat.v1.app.run(main=main, argv=[sys.argv[0]] + unparsed)
