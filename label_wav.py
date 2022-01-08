@@ -27,14 +27,11 @@ python tensorflow/examples/speech_commands/label_wav.py \
 --wav=/tmp/speech_dataset/left/a5d485dc_nohash_0.wav
 
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
+import tensorflow as tf
 import argparse
 import sys
 import numpy as np
-import tensorflow as tf
 import glob
 import wave
 import struct
@@ -52,48 +49,35 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-def load_graph(filename):
-  """Unpersists graph from file as default graph."""
-  with tf.compat.v1.gfile.FastGFile(filename, 'rb') as f:
-    graph_def = tf.compat.v1.GraphDef()
-    graph_def.ParseFromString(f.read())
-    tf.import_graph_def(graph_def, name='')
-
-
-def load_labels(filename):
-  """Read in labels, one label per line."""
-  return [line.rstrip() for line in tf.gfile.GFile(filename)]
-
-
-def run_graph(wav_glob, output_layer_name):
-  """Runs the audio data through the graph and prints predictions."""
-  with tf.compat.v1.Session() as sess:
+def run_graph(model, wav_glob, output_layer_name):
     # Feed the audio data as input to the graph.
     #   predictions  will contain a two-dimensional array, where one
     #   dimension represents the input image count, and the other has
     #   predictions per class
-    softmax_tensor = sess.graph.get_tensor_by_name(output_layer_name)
-    for wav_path in glob.glob(wav_glob):
-       w = wave.open(wav_path)
-       astr = w.readframes(w.getframerate())
-       # convert binary chunks to short 
-       a = struct.unpack("%ih" % (w.getframerate()* w.getnchannels()), astr)
-       a = [float(val) / pow(2, 15) for val in a]
-       wav_data=np.array(a,dtype=float)
-       nfft=1024
-       mels=logfbank(wav_data, w.getframerate(), lowfreq=50.0, highfreq=4200.0,nfilt=36,winlen=0.020, winstep=0.010, nfft=nfft)
-       np.set_printoptions(threshold=np.inf)
-       input = {'fingerprint_4d:0': np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1))}
-       predictions, = sess.run(softmax_tensor, input)
-       print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, int(predictions[1] * 100 + 0.5), wav_path, bcolors.ENDC)
+
+    for wav_path in sorted(glob.glob(wav_glob)):
+        w = wave.open(wav_path)
+        astr = w.readframes(w.getframerate())
+        # convert binary chunks to short 
+        a = struct.unpack("%ih" % (w.getframerate()* w.getnchannels()), astr)
+        a = [float(val) / pow(2, 15) for val in a]
+        wav_data=np.array(a,dtype=float)
+        nfft=1024
+        mels=logfbank(wav_data, w.getframerate(), lowfreq=50.0, highfreq=4200.0,nfilt=36,winlen=0.020, winstep=0.010, nfft=nfft)
+        np.set_printoptions(threshold=np.inf)
+        input_data = np.float32(np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1)))
+
+        predictions = model.predict(input_data)[0]
+        print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, int(predictions[1] * 100 + 0.5), wav_path, bcolors.ENDC)
     return 0
 
-
 def label_wav(wav, graph, output_name):
+  """Loads the model and labels, and runs the inference to print predictions."""
   # load graph, which is stored in the default session
-  load_graph(graph)
+  model = tf.keras.models.load_model('saved.model')
+  model.load_weights(FLAGS.graph)
 
-  run_graph(wav, output_name)
+  run_graph(model, wav, output_name)
 
 
 def main(_):
@@ -113,4 +97,4 @@ if __name__ == '__main__':
       help='Name of node outputting a prediction in the model.')
 
   FLAGS, unparsed = parser.parse_known_args()
-  tf.compat.v1.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+  main(unparsed)
