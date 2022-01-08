@@ -70,13 +70,15 @@ def create_model(model_settings):
     first_filter_stride_y = 3
     first_filter_stride_x = 2
 
-    inputs = tf.keras.Input(
-        shape=(input_time_size, input_frequency_size, 1), name="fingerprint")
+    model = tf.keras.Sequential()
+    model.add(tf.keras.Input(
+        shape=(input_time_size, input_frequency_size, 1), name="fingerprint"))
 
-    flow = tf.keras.layers.Conv2D(first_filter_count, kernel_size=(first_filter_height, first_filter_width),
-                                  strides=(first_filter_stride_y, first_filter_stride_x), padding='valid', activation='relu', name='conv1')(inputs)
+    conv1 = tf.keras.layers.Conv2D(first_filter_count, kernel_size=(first_filter_height, first_filter_width),
+                                      strides=(first_filter_stride_y, first_filter_stride_x), padding='valid', activation='relu', name='conv1')
+    model.add(tfmot.quantization.keras.quantize_annotate_layer(conv1))
 
-    flow = tf.keras.layers.Dropout(0.3)(flow)
+    model.add(tf.keras.layers.Dropout(0.3))
 
     first_conv_output_width = int(math.floor(
         (input_frequency_size - first_filter_width + first_filter_stride_x) /
@@ -88,23 +90,24 @@ def create_model(model_settings):
     # GRU part
     num_rnn_layers = 2
     RNN_units = 91
-    flow = tf.keras.layers.Reshape(
-        (first_conv_output_height, first_conv_output_width * first_filter_count))(flow)
+    model.add(tf.keras.layers.Reshape(
+        (first_conv_output_height, first_conv_output_width * first_filter_count)))
     cells = []
     for _ in range(num_rnn_layers):
         cells.append(tf.keras.layers.GRUCell(RNN_units))
 
     cells = tf.keras.layers.StackedRNNCells(cells)
-    flow = tf.keras.layers.RNN(cells)(flow)
+    model.add(tf.keras.layers.RNN(cells))
 
     first_fc_output_channels = 30
 
-    flow = tf.keras.layers.Dense(
-        first_fc_output_channels, activation='relu')(flow)
-    flow = tf.keras.layers.Dropout(0.1)(flow)
+    dense1 = tf.keras.layers.Dense(first_fc_output_channels, activation='relu', name='dense1')
+    model.add(tfmot.quantization.keras.quantize_annotate_layer(dense1))
+    model.add(tf.keras.layers.Dropout(0.1))
 
     # Output layer
-    flow = tf.keras.layers.Dense(2)(flow)
-    flow = tf.keras.layers.Softmax(name='logits')(flow)
+    dense2 = tf.keras.layers.Dense(2, name='dense2')
+    model.add(tfmot.quantization.keras.quantize_annotate_layer(dense2))
+    model.add(tf.keras.layers.Softmax(name='logits'))
 
-    return tf.keras.Model(inputs=inputs, outputs=flow)
+    return tfmot.quantization.keras.quantize_apply(model)
