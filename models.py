@@ -52,14 +52,7 @@ def prepare_model_settings(dct_coefficient_count):
 
 
 def create_model(model_settings):
-    """Builds a model with convolutional recurrent networks with GRUs
-    Based on the model definition in https://arxiv.org/abs/1703.05390
-    model_size_info: defines the following convolution layer parameters
-        {number of conv features, conv filter height, width, stride in y,x dir.},
-        followed by number of GRU layers and number of GRU cells per layer
-    Optionally, the bi-directional GRUs and/or GRU with layer-normalization
-      can be explored.
-    """
+    # Loosely https://arxiv.org/abs/1703.05390
     input_frequency_size = model_settings['dct_coefficient_count']
     input_time_size = model_settings['spectrogram_length']
 
@@ -71,8 +64,7 @@ def create_model(model_settings):
     first_filter_stride_x = 2
 
     model = tf.keras.Sequential()
-    model.add(tf.keras.Input(
-        shape=(input_time_size, input_frequency_size, 1), name="fingerprint"))
+    model.add(tf.keras.Input(shape=(input_time_size, input_frequency_size, 1)))
 
     conv1 = tf.keras.layers.Conv2D(first_filter_count, kernel_size=(first_filter_height, first_filter_width),
                                       strides=(first_filter_stride_y, first_filter_stride_x), padding='valid', activation='relu', name='conv1')
@@ -88,17 +80,12 @@ def create_model(model_settings):
         first_filter_stride_y))
 
     # GRU part
-    num_rnn_layers = 2
     RNN_units = 91
     model.add(tf.keras.layers.Reshape(
         (first_conv_output_height, first_conv_output_width * first_filter_count)))
-    cells = []
-    for _ in range(num_rnn_layers):
-        cells.append(tf.keras.layers.GRUCell(RNN_units))
+    model.add(tf.keras.layers.LSTM(RNN_units, name='lstm_1', time_major=False, return_sequences=True))
 
-    cells = tf.keras.layers.StackedRNNCells(cells)
-    model.add(tf.keras.layers.RNN(cells))
-
+    model.add(tf.keras.layers.Flatten())
     first_fc_output_channels = 30
 
     dense1 = tf.keras.layers.Dense(first_fc_output_channels, activation='relu', name='dense1')
@@ -106,8 +93,7 @@ def create_model(model_settings):
     model.add(tf.keras.layers.Dropout(0.1))
 
     # Output layer
-    dense2 = tf.keras.layers.Dense(2, name='dense2')
+    dense2 = tf.keras.layers.Dense(2, activation=tf.nn.softmax, name='dense2')
     model.add(tfmot.quantization.keras.quantize_annotate_layer(dense2))
-    model.add(tf.keras.layers.Softmax(name='logits'))
-
+    
     return tfmot.quantization.keras.quantize_apply(model)

@@ -80,6 +80,7 @@ def run_tflite(tflite_model, wav_glob):
         interpreter.invoke()
 
         predictions = interpreter.get_tensor(output["index"])[0]
+        print(predictions)
         print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, int(
             predictions[1] * 100 / 255 + 0.5), wav_path, bcolors.ENDC)
     return 0
@@ -103,9 +104,9 @@ def label_wav(wav, graph):
     converter.inference_output_type = tf.uint8
     converter.representative_dataset = representative_dataset
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    converter.target_spec.supported_ops = [
-        tf.lite.OpsSet.TFLITE_BUILTINS, tf.lite.OpsSet.SELECT_TF_OPS]
-    converter._experimental_lower_tensor_list_ops = False
+    #converter.allow_custom_ops = True
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS, tf.lite.OpsSet.SELECT_TF_OPS]
+    #converter.experimental_new_converter = True
 
     tflite_model = converter.convert()
     run_tflite(tflite_model, wav)
