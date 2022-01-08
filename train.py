@@ -42,9 +42,6 @@ def main(_):
   # training data of your own, use `--data_url= ` on the command line to avoid
   # downloading.
   model_settings = models.prepare_model_settings(FLAGS.dct_coefficient_count)
-  audio_processor = input_data.AudioProcessor(
-      FLAGS.data_good, FLAGS.data_bad, 
-      FLAGS.validation_percentage, model_settings)
 
   input_frequency_size = model_settings['dct_coefficient_count']
   input_time_size = model_settings['spectrogram_length']
@@ -55,15 +52,24 @@ def main(_):
   model.summary()
 
   # Instantiate an optimizer.
-  optimizer = tf.keras.optimizers.Adam(learning_rate=0.007)
+  optimizer = tf.keras.optimizers.Adam(learning_rate=0.00007)
   model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=["accuracy"])
   model.save('saved.model')
 
   earlystop= tf.keras.callbacks.EarlyStopping(monitor='loss', patience=400, restore_best_weights=True)
-  reducelr = tf.keras.callbacks.ReduceLROnPlateau(patience=300, monitor='loss', min_lr=1.0000e-08)
   saver = tf.keras.callbacks.ModelCheckpoint(filepath='saved.model.weighs.{loss:.5f}-{epoch:04d}.h5',  save_weights_only=True, save_best_only=True, monitor='accuracy')
-  x_train, y_train = audio_processor.get_data( -1, 0, model_settings, 'training')
-  model.fit(x_train, y_train, epochs=10000, batch_size=FLAGS.batch_size, callbacks=[earlystop,reducelr,saver])
+  if False:
+    audio_processor = input_data.AudioProcessor(
+        FLAGS.data_good, FLAGS.data_bad, 
+        FLAGS.validation_percentage, model_settings)
+
+    x_train, y_train = audio_processor.get_data( -1, 0, model_settings, 'training')
+    np.savez('all-waves.npz', x=x_train, y=y_train)
+  else:
+      data = np.load('all-waves.npz', mmap_mode='r')
+      x_train = data['x']
+      y_train = data['y']
+  model.fit(x_train, y_train, epochs=10000, batch_size=FLAGS.batch_size, callbacks=[earlystop,saver])
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
