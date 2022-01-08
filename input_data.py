@@ -20,7 +20,6 @@ import random
 import struct
 
 import numpy as np
-from six.moves import xrange
 from models import WINDOW_STRIDE_MS  # pylint: disable=redefined-builtin
 import tensorflow as tf
 import wave
@@ -37,16 +36,15 @@ class AudioProcessor(object):
   """Handles loading, partitioning, and preparing audio training data."""
 
   def __init__(self, data_good, data_bad,
-               validation_percentage, 
                model_settings):
     self.data_good = data_good
     self.data_bad = data_bad
-    self.prepare_data_index(model_settings, validation_percentage)
+    self.prepare_data_index(model_settings)
 
   def prepare_data_index(self, model_settings, validation_percentage):
     # Make sure the shuffling and picking of unknowns is deterministic.
     random.seed(RANDOM_SEED)
-    self.data_index = {'validation': [], 'testing': [], 'training': []}
+    self.data_index = []
     self.read_one_half(self.data_bad, 0, validation_percentage, model_settings)
     self.read_one_half(self.data_good, 1, validation_percentage, model_settings)
 
@@ -68,32 +66,13 @@ class AudioProcessor(object):
         all_files.append({'label': label, 'file': wav_path, 'mels': mel[:model_settings['spectrogram_length']]})
         w.close()
 
-    num_vali = int(len(all_files) * validation_percentage / 100.)
     for e in all_files:
-       self.data_index['validation'].append(e)
-       ds = 'training'
-       if num_vali > 0:
-           ds = 'validation'
-           num_vali -= 1
-           continue
-       self.data_index[ds].append(e)
+       self.data_index.append(e)
 
     # Make sure the ordering is random.
-    random.shuffle(self.data_index['training'])
+    random.shuffle(self.data_index)
 
-
-  def set_size(self, mode):
-    """Calculates the number of samples in the dataset partition.
-
-    Args:
-      mode: Which partition, must be 'training', 'validation', or 'testing'.
-
-    Returns:
-      Number of samples in the partition.
-    """
-    return len(self.data_index[mode])
-
-  def get_data(self, how_many, offset, model_settings, mode):
+  def get_data(self, model_settings):
     """Gather samples from the data set, applying transformations as needed.
 
     When the mode is 'training', a random selection of samples will be returned,
@@ -101,9 +80,6 @@ class AudioProcessor(object):
     validation always uses the same samples, reducing noise in the metrics.
 
     Args:
-      how_many: Desired number of samples to return. -1 means the entire
-        contents of this partition.
-      offset: Where to start when fetching deterministically.
       model_settings: Information about the current model being trained.
       background_frequency: How many clips will have background noise, 0.0 to
         1.0.
@@ -115,24 +91,17 @@ class AudioProcessor(object):
       List of sample data for the transformed samples, and list of label indexes
     """
     # Pick one of the partitions to choose samples from.
-    candidates = self.data_index[mode]
-    if how_many == -1:
-      sample_count = len(candidates)
-    else:
-      sample_count = max(0, min(how_many, len(candidates) - offset))
+    candidates = self.data_index
+    sample_count = len(candidates)
     # Data and labels will be populated and returned.
     data = np.zeros((sample_count, model_settings['spectrogram_length'], model_settings['dct_coefficient_count'], 1))
     #labels = np.zeros((sample_count), dtype=np.int32)
     labels = np.zeros((sample_count,2))
-    pick_deterministically = (mode != 'training')
     # Use the processing graph we created earlier to repeatedly to generate the
     # final output sample data we'll use in training.
-    for i in xrange(0, sample_count):
+    for i in range(0, sample_count):
       # Pick which audio sample to use.
-      if how_many == -1 or pick_deterministically:
-        sample_index = i + offset
-      else:
-        sample_index = np.random.randint(len(candidates))
+      sample_index = i
       sample = candidates[sample_index]
       #print(model_settings, sample['mels'].shape)
       # Run the graph to produce the output audio.
