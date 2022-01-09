@@ -23,7 +23,11 @@ import subprocess
 import threading
 import time
 import sys
-import tensorflow as tf
+try:
+  import tflite_runtime.interpreter as tflite
+except:
+  from tensorflow import lite as tflite
+
 import numpy as np
 import subprocess
 from python_speech_features import logfbank
@@ -206,18 +210,11 @@ class RecognizeCommands(object):
     self.recording_buffer_ = np.zeros(
         [self.recording_length_], dtype=np.float32)
     self.recording_offset_ = 0
-    self.interpreter = tf.lite.Interpreter(model_path='model.tflite')
+    self.interpreter = tflite.Interpreter(model_path='model.tflite')
     self.interpreter.allocate_tensors()
     self.output_tensor = self.interpreter.get_output_details()[0]['index']
     self.input_tensor = self.interpreter.get_input_details()[0]['index']
     self.previous_results_ = deque()
-
-  def _load_graph(self, filename):
-    """Unpersists graph from file as default graph."""
-    with tf.gfile.FastGFile(filename, 'rb') as f:
-      graph_def = tf.GraphDef()
-      graph_def.ParseFromString(f.read())
-      tf.import_graph_def(graph_def, name='')
 
   def add_data(self, data_bytes):
     """Process audio data."""
@@ -227,13 +224,8 @@ class RecognizeCommands(object):
     input_data = np.frombuffer(data_bytes, dtype='i2')/pow(2,15)
 
     mels=logfbank(input_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=36,nfft=1024, winlen=0.020,winstep=0.010)
-    input_data = np.float32(np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1)))
-
-    #print('logfbank', mels.shape, time.time() * 1000 - t1, file=sys.stderr)
-
-    bt = time.time()
-
-    self.interpreter.set_tensor(self.input_tensor, input_data)
+    
+    self.interpreter.set_tensor(self.input_tensor, np.float32([mels]))
     self.interpreter.invoke()
 
     predictions = self.interpreter.get_tensor(self.output_tensor)[0]

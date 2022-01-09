@@ -35,20 +35,19 @@ WINDOW_STRIDE_MS = 10
 class AudioProcessor(object):
   """Handles loading, partitioning, and preparing audio training data."""
 
-  def __init__(self, data_good, data_bad,
-               model_settings):
+  def __init__(self, data_good, data_bad, model_settings):
     self.data_good = data_good
     self.data_bad = data_bad
     self.prepare_data_index(model_settings)
 
-  def prepare_data_index(self, model_settings, validation_percentage):
+  def prepare_data_index(self, model_settings):
     # Make sure the shuffling and picking of unknowns is deterministic.
     random.seed(RANDOM_SEED)
     self.data_index = []
-    self.read_one_half(self.data_bad, 0, validation_percentage, model_settings)
-    self.read_one_half(self.data_good, 1, validation_percentage, model_settings)
+    self.read_one_half(self.data_bad, 0, model_settings)
+    self.read_one_half(self.data_good, 1, model_settings)
 
-  def read_one_half(self, dir, label, validation_percentage, model_settings):
+  def read_one_half(self, dir, label, model_settings):
     search_path = os.path.join(dir, '*.wav')
     all_files = []
     np.set_printoptions(threshold=np.inf)
@@ -94,7 +93,7 @@ class AudioProcessor(object):
     candidates = self.data_index
     sample_count = len(candidates)
     # Data and labels will be populated and returned.
-    data = np.zeros((sample_count, model_settings['spectrogram_length'], model_settings['dct_coefficient_count'], 1))
+    data = np.zeros((sample_count, model_settings['spectrogram_length'], model_settings['dct_coefficient_count']))
     #labels = np.zeros((sample_count), dtype=np.int32)
     labels = np.zeros((sample_count,2))
     # Use the processing graph we created earlier to repeatedly to generate the
@@ -105,7 +104,7 @@ class AudioProcessor(object):
       sample = candidates[sample_index]
       #print(model_settings, sample['mels'].shape)
       # Run the graph to produce the output audio.
-      data[i] = np.reshape(sample['mels'][:model_settings['spectrogram_length']], (model_settings['spectrogram_length'], model_settings['dct_coefficient_count'], 1))
+      data[i] = np.reshape(sample['mels'], (model_settings['spectrogram_length'], model_settings['dct_coefficient_count']))
       #labels[i] = sample['label']
       labels[i][sample['label']] = 1
     return data, labels

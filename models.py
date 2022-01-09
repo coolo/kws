@@ -63,7 +63,8 @@ def create_model(model_settings):
     first_filter_stride_x = 2
 
     model = tf.keras.Sequential()
-    model.add(tf.keras.Input(shape=(input_time_size, input_frequency_size, 1)))
+    model.add(tf.keras.Input(shape=(input_time_size, input_frequency_size), name='fingerprint'))
+    model.add(tf.keras.layers.Reshape((input_time_size, input_frequency_size, 1)))
 
     conv1 = tf.keras.layers.Conv2D(first_filter_count, kernel_size=(first_filter_height, first_filter_width),
                                       strides=(first_filter_stride_y, first_filter_stride_x), padding='valid', activation='relu', name='conv1')

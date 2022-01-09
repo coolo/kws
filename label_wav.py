@@ -72,7 +72,7 @@ def run_tflite(wav_glob):
                         highfreq=4200.0, nfilt=36, winlen=0.020, winstep=0.010, nfft=nfft)
         np.set_printoptions(threshold=np.inf)
         input_data = np.float32(np.reshape(
-            mels, (1, mels.shape[0], mels.shape[1], 1)))
+            mels, (1, mels.shape[0], mels.shape[1])))
 
         output = interpreter.get_output_details()[0]  # Model has single output.
         input = interpreter.get_input_details()[0]  # Model has single input.
@@ -91,6 +91,8 @@ def label_wav(wav, graph):
     if True:
         model = tf.keras.models.load_model('saved.model')
         model.load_weights(graph)
+        # fixed batch size
+        model.input.set_shape((1,) + model.input.shape[1:])
         model.summary()
 
         data = np.load('all-waves.npz', mmap_mode='r')
@@ -104,7 +106,7 @@ def label_wav(wav, graph):
         #converter.inference_output_type = tf.uint8
         converter.representative_dataset = representative_dataset
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
-        converter._experimental_lower_tensor_list_ops = True
+        #converter._experimental_lower_tensor_list_ops = True
         #converter.allow_custom_ops = True
         converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS, tf.lite.OpsSet.SELECT_TF_OPS]
         #converter.experimental_new_converter = True
