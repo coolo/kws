@@ -51,13 +51,13 @@ class bcolors:
     UNDERLINE = '\033[4m'
 
 
-def run_tflite(tflite_model, wav_glob):
+def run_tflite(wav_glob):
     # Feed the audio data as input to the graph.
     #   predictions  will contain a two-dimensional array, where one
     #   dimension represents the input image count, and the other has
     #   predictions per class
 
-    interpreter = tf.lite.Interpreter(model_content=tflite_model)
+    interpreter = tf.lite.Interpreter(model_path='model.tflite')
     interpreter.allocate_tensors()  # Needed before execution!
 
     for wav_path in sorted(glob.glob(wav_glob)):
@@ -88,28 +88,30 @@ def run_tflite(tflite_model, wav_glob):
 
 def label_wav(wav, graph):
     """Loads the model and labels, and runs the inference to print predictions."""
-    # load graph, which is stored in the default session
-    model = tf.keras.models.load_model('saved.model')
-    model.load_weights(graph)
-    model.summary()
+    if True:
+        model = tf.keras.models.load_model('saved.model')
+        model.load_weights(graph)
+        model.summary()
 
-    data = np.load('all-waves.npz', mmap_mode='r')
-    dataset = tf.data.Dataset.from_tensor_slices(data['x'])
+        data = np.load('all-waves.npz', mmap_mode='r')
+        dataset = tf.data.Dataset.from_tensor_slices(data['x'])
 
-    def representative_dataset():
-        for data in dataset.batch(1).take(300):
-            yield [tf.dtypes.cast(data, tf.float32)]
+        def representative_dataset():
+            for data in dataset.batch(1).take(300):
+                yield [tf.dtypes.cast(data, tf.float32)]
 
-    converter = tf.lite.TFLiteConverter.from_keras_model(model)
-    converter.inference_output_type = tf.uint8
-    converter.representative_dataset = representative_dataset
-    converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    #converter.allow_custom_ops = True
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS, tf.lite.OpsSet.SELECT_TF_OPS]
-    #converter.experimental_new_converter = True
+        converter = tf.lite.TFLiteConverter.from_keras_model(model)
+        converter.inference_output_type = tf.uint8
+        converter.representative_dataset = representative_dataset
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        #converter.allow_custom_ops = True
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS, tf.lite.OpsSet.SELECT_TF_OPS]
+        #converter.experimental_new_converter = True
 
-    tflite_model = converter.convert()
-    run_tflite(tflite_model, wav)
+        tflite_model = converter.convert()
+        with open('model.tflite', 'wb') as f:
+            f.write(tflite_model)
+    run_tflite(wav)
 
 
 def main(_):
