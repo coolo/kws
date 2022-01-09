@@ -24,7 +24,6 @@
 """
 import math
 import tensorflow as tf
-import tensorflow_model_optimization as tfmot
 
 WINDOW_SIZE_MS = 20
 WINDOW_STRIDE_MS = 10
@@ -68,7 +67,7 @@ def create_model(model_settings):
 
     conv1 = tf.keras.layers.Conv2D(first_filter_count, kernel_size=(first_filter_height, first_filter_width),
                                       strides=(first_filter_stride_y, first_filter_stride_x), padding='valid', activation='relu', name='conv1')
-    model.add(tfmot.quantization.keras.quantize_annotate_layer(conv1))
+    model.add(conv1)
 
     model.add(tf.keras.layers.Dropout(0.3))
 
@@ -89,11 +88,11 @@ def create_model(model_settings):
     first_fc_output_channels = 30
 
     dense1 = tf.keras.layers.Dense(first_fc_output_channels, activation='relu', name='dense1')
-    model.add(tfmot.quantization.keras.quantize_annotate_layer(dense1))
+    model.add(dense1)
     model.add(tf.keras.layers.Dropout(0.1))
 
     # Output layer
     dense2 = tf.keras.layers.Dense(2, activation=tf.nn.softmax, name='dense2')
-    model.add(tfmot.quantization.keras.quantize_annotate_layer(dense2))
+    model.add(dense2)
     
-    return tfmot.quantization.keras.quantize_apply(model)
+    return model
