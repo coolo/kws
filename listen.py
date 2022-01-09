@@ -23,10 +23,8 @@ import subprocess
 import threading
 import time
 import sys
-import wave
 import tensorflow as tf
 import numpy as np
-import struct
 import subprocess
 from python_speech_features import logfbank
 import audioop
@@ -47,8 +45,7 @@ class Recorder(threading.Thread):
 
   def __init__(self,
                input_device='default',
-               channels=1,
-               bytes_per_sample=2,
+                bytes_per_sample=2,
                sample_rate_hz=48000):
     """Create a Recorder with the given audio format.
 
@@ -76,7 +73,7 @@ class Recorder(threading.Thread):
        # will return this many frames. Each frame being 2 bytes long.
        self.inp.setperiodsize(int(sample_rate_hz * 0.05))
     else:
-       p = subprocess.Popen(['mpg123', '-S', '-@', os.environ['STREAM']], shell=False,  stdout=subprocess.PIPE, close_fds=True)
+       p = subprocess.Popen(['mpg123', '-s', '-@', os.environ['STREAM']], shell=False,  stdout=subprocess.PIPE, close_fds=True)
        self.inp = p.stdout
        self._channels = 2
        self._sample_rate_hz = 44100
@@ -103,7 +100,7 @@ class Recorder(threading.Thread):
       self.unscaled_data += input_data
       self.lock.release()
 
-    if not self._closed:
+    if True:
       logger.error('Microphone recorder died unexpectedly, aborting...')
       # sys.exit doesn't work from background threads, so use os._exit as
       # an emergency measure.
@@ -157,19 +154,19 @@ class Fetcher(threading.Thread):
 
       current_time_ms = time.time() * 1000
       rate = self.processor.add_data(chunk)
+      add_data_delta = time.time() * 1000 - current_time_ms
 
-      if rate>0.01:
-         print('{} Confidence {:3}'.format(time.time(), int(100*rate)), file=sys.stderr)
+      if rate>0:
+         print('{} Confidence {:4} - took {}'.format(time.time(), int(rate), add_data_delta), file=sys.stderr)
          sys.stderr.flush()
 
       time_since_last_top = current_time_ms - previous_top_label_time_
 
-      #print(time.time(), 'handle', rate, int(time.time() * 1000 - current_time_ms))
-      if rate > 0.1:
+      if rate > 0.001:
         if not 'STREAM' in os.environ and rate >= self.detection_threshold_ and time_since_last_top > self.processor.suppression_ms_:
           os.system('curl -s http://localhost:3838 &')
           previous_top_label_time_ = current_time_ms
-        with open('out-%.3f-%.2f.raw' % (rate, time.time()), 'wb') as f:
+        with open('out-%03d-%.2f.raw' % (rate, time.time()), 'wb') as f:
           f.write(chunk)
       
       delta = time.time() * 1000 - current_time_ms
@@ -211,8 +208,10 @@ class RecognizeCommands(object):
     self.recording_buffer_ = np.zeros(
         [self.recording_length_], dtype=np.float32)
     self.recording_offset_ = 0
-    self.sess_ = tf.Session()
-    self._load_graph(graph)
+    self.interpreter = tf.lite.Interpreter(model_path='model.tflite')
+    self.interpreter.allocate_tensors()
+    self.output_tensor = self.interpreter.get_output_details()[0]['index']
+    self.input_tensor = self.interpreter.get_input_details()[0]['index']
     self.previous_results_ = deque()
 
   def _load_graph(self, filename):
@@ -226,18 +225,22 @@ class RecognizeCommands(object):
     """Process audio data."""
     if not data_bytes:
       return
-    softmax_tensor = self.sess_.graph.get_tensor_by_name(self.output_name_)
-
+    #t1 = time.time() * 1000
     input_data = np.frombuffer(data_bytes, dtype='i2')/pow(2,15)
 
     mels=logfbank(input_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=36,nfft=1024, winlen=0.020,winstep=0.010)
-    input = {'fingerprint_4d:0': np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1))}
+    input_data = np.float32(np.reshape(mels, (1, mels.shape[0], mels.shape[1], 1)))
 
-    #print('logfbank', mels.shape, time.time() - bt)
+    #print('logfbank', mels.shape, time.time() * 1000 - t1, file=sys.stderr)
 
     bt = time.time()
 
-    predictions, = self.sess_.run(softmax_tensor, input)
+    self.interpreter.set_tensor(self.input_tensor, input_data)
+    self.interpreter.invoke()
+
+    predictions = self.interpreter.get_tensor(self.output_tensor)[0]
+    print('model', time.time() * 1000 - bt * 1000, file=sys.stderr)
+
     return predictions[1]
 
   def is_done(self):
@@ -262,8 +265,6 @@ def main():
       default='default',
       help='Name of the audio input device')
   parser.add_argument(
-      '-c', '--channels', type=int, default=1, help='Number of channels')
-  parser.add_argument(
       '-f',
       '--bytes-per-sample',
       type=int,
@@ -287,8 +288,8 @@ def main():
       help='How long to average results over.')
   parser.add_argument(
       '--detection_threshold',
-      type=float,
-      default='0.5',
+      type=int,
+      default=253,
       help='Score required to trigger recognition.')
   parser.add_argument(
       '--suppression_ms',
@@ -311,7 +312,6 @@ def main():
 
   recorder = Recorder(
       input_device=args.input_device,
-      channels=args.channels,
       bytes_per_sample=args.bytes_per_sample,
       sample_rate_hz=args.rate)
 

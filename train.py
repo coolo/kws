@@ -51,8 +51,8 @@ def main(_):
     earlystop = tf.keras.callbacks.EarlyStopping(
         monitor='loss', patience=12, restore_best_weights=True)
     saver = tf.keras.callbacks.ModelCheckpoint(
-        filepath='saved.model.weighs.{loss:.5f}-{epoch:04d}.h5',  save_weights_only=True, save_best_only=True, monitor='accuracy')
-    if False:
+        filepath='saved.model.weighs.{epoch:04d}.h5',  save_weights_only=True, save_best_only=True, monitor='accuracy')
+    if FLAGS.rescan:
         audio_processor = input_data.AudioProcessor(
             FLAGS.data_good, FLAGS.data_bad,
             FLAGS.validation_percentage, model_settings)
@@ -63,7 +63,7 @@ def main(_):
         data = np.load('all-waves.npz', mmap_mode='r')
         x_train = data['x']
         y_train = data['y']
-    model.fit(x_train, y_train, epochs=10000, batch_size=FLAGS.batch_size, callbacks=[
+    model.fit(x_train, y_train, epochs=FLAGS.epochs, batch_size=FLAGS.batch_size, callbacks=[
               earlystop, saver], validation_split=0.05)
 
 
@@ -83,6 +83,16 @@ if __name__ == '__main__':
         help="""\
         Subdirs with bad examples.
         """)
+    parser.add_argument(
+        '--rescan',
+        type=bool,
+        default=False,
+        help="Rescan the wav files")
+    parser.add_argument(
+        '--epochs',
+        type=int,
+        default=9999,
+        help="Epochs to run max")
     parser.add_argument(
         '--dct_coefficient_count',
         type=int,
