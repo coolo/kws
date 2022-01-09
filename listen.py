@@ -154,10 +154,9 @@ class Fetcher(threading.Thread):
 
       current_time_ms = time.time() * 1000
       rate = self.processor.add_data(chunk)
-      add_data_delta = time.time() * 1000 - current_time_ms
 
-      if rate>0:
-         print('{} Confidence {:4} - took {}'.format(time.time(), int(rate), add_data_delta), file=sys.stderr)
+      if rate>0.01:
+         print('{} Confidence {:4}'.format(time.time(), int(rate)), file=sys.stderr)
          sys.stderr.flush()
 
       time_since_last_top = current_time_ms - previous_top_label_time_
@@ -166,12 +165,11 @@ class Fetcher(threading.Thread):
         if not 'STREAM' in os.environ and rate >= self.detection_threshold_ and time_since_last_top > self.processor.suppression_ms_:
           os.system('curl -s http://localhost:3838 &')
           previous_top_label_time_ = current_time_ms
-        with open('out-%03d-%.2f.raw' % (rate, time.time()), 'wb') as f:
+        with open('out-%03f-%.2f.raw' % (rate, time.time()), 'wb') as f:
           f.write(chunk)
       
       delta = time.time() * 1000 - current_time_ms
       if delta < 150:
-         print("delta", delta)
          time.sleep(.150 - delta / 1000)
 
       #for p in self._processors:
@@ -239,7 +237,7 @@ class RecognizeCommands(object):
     self.interpreter.invoke()
 
     predictions = self.interpreter.get_tensor(self.output_tensor)[0]
-    print('model', time.time() * 1000 - bt * 1000, file=sys.stderr)
+    #print('model', time.time() * 1000 - bt * 1000, file=sys.stderr)
 
     return predictions[1]
 
@@ -288,8 +286,8 @@ def main():
       help='How long to average results over.')
   parser.add_argument(
       '--detection_threshold',
-      type=int,
-      default=253,
+      type=float,
+      default=0.9,
       help='Score required to trigger recognition.')
   parser.add_argument(
       '--suppression_ms',
