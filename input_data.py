@@ -52,6 +52,7 @@ class AudioProcessor(object):
     all_files = []
     np.set_printoptions(threshold=np.inf)
     for wav_path in gfile.Glob(search_path):
+        print(wav_path)
         w = wave.open(wav_path)
         astr = w.readframes(w.getframerate())
         # convert binary chunks to short 

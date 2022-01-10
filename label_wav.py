@@ -80,7 +80,7 @@ def run_tflite(wav_glob):
         interpreter.invoke()
 
         predictions = interpreter.get_tensor(output["index"])[0]
-        print(predictions)
+        #print(predictions)
         print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, int(
             predictions[1] * 100 + 0.5), wav_path, bcolors.ENDC)
     return 0
@@ -103,7 +103,7 @@ def label_wav(wav, graph):
                 yield [tf.dtypes.cast(data, tf.float32)]
 
         converter = tf.lite.TFLiteConverter.from_keras_model(model)
-        #converter.inference_output_type = tf.uint8
+        converter.inference_output_type = tf.uint8
         converter.representative_dataset = representative_dataset
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
         #converter._experimental_lower_tensor_list_ops = True
