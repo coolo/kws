@@ -28,17 +28,18 @@ python tensorflow/examples/speech_commands/label_wav.py \
 
 """
 
+from numpy.core.shape_base import block
 import tensorflow as tf
 import argparse
-import time
 import numpy as np
 import glob
+import os
 import wave
 import struct
 from python_speech_features import logfbank
+import pathlib
 
 FLAGS = None
-
 
 class bcolors:
     HEADER = '\033[95m'
@@ -57,8 +58,86 @@ def run_tflite(wav_glob):
     #   dimension represents the input image count, and the other has
     #   predictions per class
 
-    interpreter = tf.lite.Interpreter(model_path='model.tflite')
+    model_path = os.path.join(pathlib.Path(__file__).parent.resolve(), 'model.tflite')
+    interpreter = tf.lite.Interpreter(model_path=model_path)
     interpreter.allocate_tensors()  # Needed before execution!
+
+    np.set_printoptions(threshold=np.inf, linewidth=1000)
+
+    named_vectors = {
+        'a': np.array([5,6,6,7,7,7,7,7,7,7,7,6,6,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,5,5,5,6,6,5,4,4], dtype=np.float32) / 10,
+        'b': np.array([4,4,3,4,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,5,5,4,4,4], dtype=np.float32) / 10,
+        'c': np.array([4,4,4,4,4,5,7,7,5,4,5,6,7,7,6,6,7,7,6,6,6,6,6,6,7,7,8,8,8,8,8,8,8,7,7,7], dtype=np.float32) / 10,
+        'd': np.array([4,4,3,4,3,3,3,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2], dtype=np.float32) / 10,
+        'e': np.array([3,4,4,5,5,5,6,6,6,6,6,4,4,3,3,3,3,3,3,4,5,6,6,5,5,5,6,6,4,4,4,4,5,4,3,3], dtype=np.float32) / 10,
+        'f': np.array([4,4,4,5,6,6,6,6,6,7,7,6,6,5,5,5,4,4,4,4,4,4,4,5,6,6,7,7,7,7,7,7,7,7,6,6], dtype=np.float32) / 10,
+        'g': np.array([4,5,5,6,6,7,7,7,7,7,7,7,7,6,6,6,6,6,6,6,6,6,6,7,7,7,8,8,8,8,8,8,8,7,7,7], dtype=np.float32) / 10,
+        'h': np.array([3,3,3,3,3,3,3,4,4,4,4,4,5,5,5,4,4,4,4,3,3,3,3,3,4,5,5,6,6,6,6,6,6,5,5,5], dtype=np.float32) / 10,
+        'i': np.array([4,4,3,4,4,4,4,5,5,5,5,5,5,4,4,4,3,3,3,3,3,3,4,4,5,6,6,5,5,5,5,6,6,4,4,4], dtype=np.float32) / 10,
+        'j': np.array([5,6,6,7,7,7,7,8,8,8,8,7,7,6,6,6,6,6,6,7,7,8,7,7,7,7,8,7,7,7,7,7,7,7,6,6], dtype=np.float32) / 10,
+        'k': np.array([4,4,5,5,6,5,5,5,5,4,4,4,3,3,3,3,3,3,3,3,3,3,3,3,3,4,4,3,3,3,3,4,4,3,3,3], dtype=np.float32) / 10,
+        'l': np.array([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2], dtype=np.float32) / 10,
+        'm': np.array([4,4,4,4,4,4,4,4,5,5,5,5,4,4,4,4,4,4,4,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3], dtype=np.float32) / 10,
+        'n': np.array([3,3,3,3,3,3,4,4,5,5,5,3,3,3,3,3,3,3,3,3,4,4,4,3,3,4,4,4,3,3,4,4,4,3,3,3], dtype=np.float32) / 10,
+        'o': np.array([3,3,3,4,4,4,4,5,5,4,4,4,3,3,3,3,3,3,3,3,3,3,3,3,4,4,5,5,5,5,5,6,5,4,4,4], dtype=np.float32) / 10,
+        'p': np.array([4,5,5,6,6,6,6,6,5,5,4,4,4,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,4,4,4,5,5,4,3,3], dtype=np.float32) / 10,
+        'q': np.array([4,5,6,6,6,6,7,7,7,6,6,5,5,4,4,4,4,4,4,5,6,5,5,4,4,5,5,5,5,5,6,6,7,5,4,4], dtype=np.float32) / 10,
+        'r': np.array([4,4,4,4,4,4,4,5,6,6,6,6,6,5,5,4,4,4,4,3,3,3,4,4,5,6,7,7,7,6,7,7,7,6,5,6], dtype=np.float32) / 10,
+        's': np.array([5,6,6,6,6,6,6,6,6,6,6,5,5,5,5,5,6,6,6,6,6,6,6,6,7,7,7,7,7,7,7,7,7,7,7,7], dtype=np.float32) / 10,
+        't': np.array([4,4,3,3,4,4,4,4,4,5,5,5,5,5,6,6,6,6,6,6,6,6,5,6,6,7,7,7,7,7,7,7,7,6,6,7], dtype=np.float32) / 10,
+        'u': np.array([4,4,5,6,6,5,5,6,6,6,6,6,6,5,5,5,4,4,4,4,4,4,4,5,6,6,6,6,5,6,6,6,6,5,4,5], dtype=np.float32) / 10,
+        'v': np.array([4,4,4,4,4,6,5,4,4,5,6,7,6,5,5,5,4,4,4,4,3,3,4,4,4,5,5,6,6,7,7,7,7,6,6,6], dtype=np.float32) / 10,
+        'w': np.array([4,4,3,4,3,3,3,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2,2,3,3,3,3,3,3,3,3,3,3,3,3], dtype=np.float32) / 10,
+        'x': np.array([4,4,4,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,5,6], dtype=np.float32) / 10,
+        'y': np.array([3,3,3,3,4,4,6,6,4,4,4,5,6,6,5,4,5,6,5,4,4,4,4,4,5,6,6,7,7,7,7,7,7,7,6,6], dtype=np.float32) / 10,
+        'z': np.array([4,5,5,6,6,6,7,7,7,7,6,6,5,4,4,4,4,4,4,5,6,6,5,5,5,5,6,5,4,4,4,4,5,4,4,3], dtype=np.float32) / 10,
+        'A': np.array([3,3,3,4,4,5,5,6,6,6,5,4,3,3,3,3,3,3,3,4,5,6,5,4,4,4,5,4,3,3,3,4,4,3,3,3], dtype=np.float32) / 10,
+        'B': np.array([4,4,3,3,3,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,3,3,3,2,2,3], dtype=np.float32) / 10,
+        'C': np.array([5,6,6,6,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,8,8,8,8,8,8,8,8,8,8,8], dtype=np.float32) / 10,
+        'D': np.array([4,4,3,4,5,5,4,4,4,6,6,5,5,6,6,5,5,5,4,4,4,4,4,5,6,6,7,7,7,7,7,7,7,6,6,6], dtype=np.float32) / 10,
+        'E': np.array([4,4,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,5,5,5,5,6,6,7,7,7,7,7,7,7,7,7,7], dtype=np.float32) / 10,
+        'F': np.array([4,4,4,4,5,5,6,6,7,7,7,6,6,7,7,7,7,7,7,7,7,6,7,7,7,8,8,8,8,8,8,8,8,7,7,7], dtype=np.float32) / 10,
+        'G': np.array([4,4,4,4,4,5,6,6,6,6,7,7,6,6,6,5,5,5,5,5,5,5,5,6,7,7,7,7,7,7,7,7,7,6,6,6], dtype=np.float32) / 10,
+        'H': np.array([5,6,6,7,7,7,7,8,7,7,7,7,6,6,6,6,6,6,6,7,7,7,7,7,7,7,7,7,6,6,6,6,6,5,4,4], dtype=np.float32) / 10,
+        'I': np.array([4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,4,4,4,4,4,4,4,4,4,4,4,3,3,4], dtype=np.float32) / 10,
+        'J': np.array([4,5,5,6,6,6,7,7,7,6,6,5,4,4,4,4,4,4,4,4,5,6,6,6,6,6,7,6,6,5,6,7,7,6,4,4], dtype=np.float32) / 10,
+        'K': np.array([4,4,4,4,4,4,4,4,4,3,3,3,3,3,3,2,2,3,2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3], dtype=np.float32) / 10,
+        'L': np.array([3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,5,5,5,6,6,6,6,6,5,5,5], dtype=np.float32) / 10,
+        'M': np.array([2,2,2,2,2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,3], dtype=np.float32) / 10,
+        'N': np.array([4,4,3,4,4,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,6,6,6,6,5,5,5,5,6,5,5,4,5], dtype=np.float32) / 10,
+        'O': np.array([3,4,4,5,5,4,5,6,6,7,7,5,5,4,4,4,3,4,4,5,6,6,6,5,5,6,6,5,5,5,6,7,7,6,4,4], dtype=np.float32) / 10,
+        'P': np.array([4,4,4,4,5,5,5,6,6,6,6,6,5,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,4], dtype=np.float32) / 10,
+        'Q': np.array([4,4,4,5,5,6,6,5,4,4,4,5,4,4,5,5,5,5,5,5,5,5,5,6,6,7,7,7,6,6,6,6,6,5,5,6], dtype=np.float32) / 10,
+        'R': np.array([4,4,4,4,5,6,6,5,4,5,6,7,7,6,6,7,7,6,6,6,6,6,6,7,7,7,8,8,8,8,8,8,8,7,7,7], dtype=np.float32) / 10,
+        'S': np.array([4,4,3,4,3,3,4,4,3,4,4,4,4,4,4,4,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,3,3], dtype=np.float32) / 10,
+        'T': np.array([4,5,5,5,6,6,6,6,6,6,6,6,6,5,6,6,6,6,6,6,5,5,5,5,5,5,5,4,4,4,4,5,5,4,4,4], dtype=np.float32) / 10,
+        'U': np.array([4,4,4,4,4,5,6,6,6,6,6,5,5,4,4,4,4,4,4,4,4,5,5,6,6,6,6,6,6,6,6,6,6,5,5,6], dtype=np.float32) / 10,
+        'V': np.array([4,4,5,6,6,6,7,7,7,7,7,6,6,5,5,5,5,5,6,6,7,7,7,6,6,7,7,7,6,6,6,7,7,6,5,4], dtype=np.float32) / 10,
+        'W': np.array([4,4,4,5,5,5,5,5,5,5,4,4,4,4,4,4,3,4,3,3,4,4,4,4,4,5,6,6,6,6,6,6,6,6,5,6], dtype=np.float32) / 10,
+        'X': np.array([2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2], dtype=np.float32) / 10,
+        'Y': np.array([4,4,4,4,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3], dtype=np.float32) / 10,
+        'Z': np.array([4,4,4,4,4,4,5,6,6,6,5,4,3,3,3,3,3,3,3,4,5,5,4,4,4,4,5,4,4,4,5,6,6,4,4,3], dtype=np.float32) / 10
+    }
+    def difference_between(vec1, vec2):
+         return np.linalg.norm(vec1-vec2)
+
+    def short_name(mels):
+        # map to -1..-1 for mu encoding
+        diagram = (np.clip(mels, -16, 0) + 8) / 16
+        mu = 10
+        diagram = np.uint8((np.sign(diagram) * (np.log(1.0 + mu * np.abs(diagram)) / np.log(1.0 + mu)) + 1) * 5 + 0.5)
+        shortname=""
+        for x in diagram:
+            min=10000
+            best_hit=None
+            for letter, vec in named_vectors.items():
+                diff=difference_between(vec, np.float32(x) / 10)
+                if diff < min:
+                    min = diff
+                    best_hit = letter
+            shortname+=best_hit
+        # ignore first character - it's too noisy
+        return shortname[1:]
 
     for wav_path in sorted(glob.glob(wav_glob)):
         w = wave.open(wav_path)
@@ -70,25 +149,29 @@ def run_tflite(wav_glob):
         nfft = 1024
         mels = logfbank(wav_data, w.getframerate(), lowfreq=50.0,
                         highfreq=4200.0, nfilt=36, winlen=0.020, winstep=0.010, nfft=nfft)
-        np.set_printoptions(threshold=np.inf)
-        input_data = np.float32(np.reshape(
-            mels, (1, mels.shape[0], mels.shape[1])))
+        
+        input_data = np.float32(np.reshape(mels, (1, mels.shape[0], mels.shape[1])))
 
         output = interpreter.get_output_details()[0]  # Model has single output.
         input = interpreter.get_input_details()[0]  # Model has single input.
         interpreter.set_tensor(input['index'], input_data)
-        interpreter.invoke()
+        if FLAGS.rename:
+            sn = short_name(mels)
+            print(f"rename {wav_path} to {sn}.wav")
+            os.rename(wav_path, sn + ".wav")
+        else:
+            interpreter.invoke()
 
-        predictions = interpreter.get_tensor(output["index"])[0]
-        #print(predictions)
-        print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, int(
-            predictions[1] * 100 + 0.5), wav_path, bcolors.ENDC)
+            predictions = interpreter.get_tensor(output["index"])[0]
+            print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, int(
+            predictions[1] * 100 / 255 + 0.5), wav_path, bcolors.ENDC)
+
     return 0
 
 
 def label_wav(wav, graph):
     """Loads the model and labels, and runs the inference to print predictions."""
-    if True:
+    if FLAGS.graph:
         model = tf.keras.models.load_model('saved.model')
         model.load_weights(graph)
         # fixed batch size
@@ -106,10 +189,6 @@ def label_wav(wav, graph):
         converter.inference_output_type = tf.uint8
         converter.representative_dataset = representative_dataset
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
-        #converter._experimental_lower_tensor_list_ops = True
-        #converter.allow_custom_ops = True
-        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS, tf.lite.OpsSet.SELECT_TF_OPS]
-        #converter.experimental_new_converter = True
 
         tflite_model = converter.convert()
         with open('model.tflite', 'wb') as f:
@@ -127,7 +206,10 @@ if __name__ == '__main__':
     parser.add_argument(
         '--wav', type=str, default='', help='Audio file to be identified.')
     parser.add_argument(
-        '--graph', type=str, default='', help='Model to use for identification.')
+        '--graph', type=str, default=None, help='Model to use for identification.')
+    parser.add_argument('--rename', dest='rename', action='store_true')
+    parser.set_defaults(rename=False)
 
     FLAGS, unparsed = parser.parse_known_args()
+    print(FLAGS)
     main(unparsed)

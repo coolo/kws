@@ -1,4 +1,4 @@
-for file in $(ls -1 out*.wav); do
+for file in $(ls -1 *.wav); do
     while true; do 
 	aplay $file
 	echo "(g)ut (s)chlecht (n)ochmal (i)gnore"
