@@ -159,17 +159,17 @@ class Fetcher(threading.Thread):
       current_time_ms = time.time() * 1000
       rate = self.processor.add_data(chunk)
 
-      if rate>0.01:
+      if rate>=0:
          print('{} Confidence {:4}'.format(time.time(), int(rate)), file=sys.stderr)
          sys.stderr.flush()
 
       time_since_last_top = current_time_ms - previous_top_label_time_
 
-      if rate > 0.001:
+      if rate > 0:
         if not 'STREAM' in os.environ and rate >= self.detection_threshold_ and time_since_last_top > self.processor.suppression_ms_:
           os.system('curl -s http://localhost:3838 &')
           previous_top_label_time_ = current_time_ms
-        with open('out-%03f-%.2f.raw' % (rate, time.time()), 'wb') as f:
+        with open('out-%03d-%.2f.raw' % (rate, time.time()), 'wb') as f:
           f.write(chunk)
       
       delta = time.time() * 1000 - current_time_ms
