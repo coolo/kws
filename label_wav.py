@@ -157,6 +157,12 @@ def run_tflite(wav_glob):
         interpreter.set_tensor(input['index'], input_data)
         if FLAGS.rename:
             sn = short_name(mels)
+            counter = 0
+            if os.path.exists(sn):
+                counter = 1
+                while os.path.exists(f"{sn}-{counter}.wav"):
+                    counter += 1
+                sn = sn + f"-{counter}"
             print(f"rename {wav_path} to {sn}.wav")
             os.rename(wav_path, sn + ".wav")
         else:
