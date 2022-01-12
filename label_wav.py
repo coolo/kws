@@ -166,9 +166,9 @@ def run_tflite(wav_glob):
             print(f"rename {wav_path} to {sn}.wav")
             os.rename(wav_path, sn + ".wav")
         else:
-            interpreter.invoke()
+            interpreter.invoke() 
 
-            predictions = interpreter.get_tensor(output["index"])[0]
+            predictions = interpreter.get_tensor(output["index"])[0] * 255
             print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, int(
             predictions[1] * 100 / 255 + 0.5), wav_path, bcolors.ENDC)
 
@@ -192,9 +192,9 @@ def label_wav(wav, graph):
                 yield [tf.dtypes.cast(data, tf.float32)]
 
         converter = tf.lite.TFLiteConverter.from_keras_model(model)
-        converter.inference_output_type = tf.uint8
         converter.representative_dataset = representative_dataset
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.target_spec.supported_types = [tf.float16]
 
         tflite_model = converter.convert()
         with open('model.tflite', 'wb') as f:
