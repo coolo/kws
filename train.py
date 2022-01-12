@@ -39,8 +39,10 @@ class ConfusionMatrixDisplay(tf.keras.callbacks.Callback):
         pred = self.model.predict(self.X_val)
         max_pred = np.argmax(pred, axis=1)
         max_y = np.argmax(self.Y_val, axis=1)
-        print()
-        print(tf.math.confusion_matrix(max_y, max_pred).numpy())
+        conf_matrix = tf.math.confusion_matrix(max_y, max_pred).numpy()
+        bad = conf_matrix[0]
+        good = conf_matrix[1]
+        print("        misses: {}/{} gut and {}/{} schlecht".format(good[0], good[0] + good[1], bad[1], bad[0] + bad[1]))
 
 def main(_):
     # We want to see all the logging messages for this tutorial.
