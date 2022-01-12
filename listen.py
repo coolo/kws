@@ -77,7 +77,7 @@ class Recorder(threading.Thread):
        # will return this many frames. Each frame being 2 bytes long.
        self.inp.setperiodsize(int(sample_rate_hz * 0.05))
     else:
-       p = subprocess.Popen(['mpg123', '-s', '-@', os.environ['STREAM']], shell=False,  stdout=subprocess.PIPE, close_fds=True)
+       p = subprocess.Popen('curl -s -L "{}" | mpg123 -s -@ -'.format(os.environ['STREAM']), shell=True,  stdout=subprocess.PIPE, close_fds=True)
        self.inp = p.stdout
        self._channels = 2
        self._sample_rate_hz = 44100
