@@ -30,6 +30,17 @@ import models
 FLAGS = None
 SAMPLE_RATE = 16000
 
+class ConfusionMatrixDisplay(tf.keras.callbacks.Callback):
+    def __init__(self, X_val, Y_val):
+        self.X_val = X_val
+        self.Y_val = Y_val
+
+    def on_epoch_end(self, epoch, logs={}):
+        pred = self.model.predict(self.X_val)
+        max_pred = np.argmax(pred, axis=1)
+        max_y = np.argmax(self.Y_val, axis=1)
+        print()
+        print(tf.math.confusion_matrix(max_y, max_pred).numpy())
 
 def main(_):
     # We want to see all the logging messages for this tutorial.
@@ -60,8 +71,12 @@ def main(_):
         data = np.load('all-waves.npz', mmap_mode='r')
         x_train = data['x']
         y_train = data['y']
-    model.fit(x_train, y_train, epochs=9999, batch_size=100, callbacks=[
-              earlystop, saver], validation_split=0.05)
+    plotter2 = ConfusionMatrixDisplay(X_val=x_train, Y_val=y_train)
+
+    model.fit(x_train, y_train, epochs=400, batch_size=100, callbacks=[earlystop, plotter2, saver])
+    # evaluate the model
+    scores = model.evaluate(x_train, y_train)
+    input('Press ENTER to continue...')
 
 
 if __name__ == '__main__':

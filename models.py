@@ -95,6 +95,6 @@ def create_model(model_settings):
 
     # Output layer
     dense2 = tf.keras.layers.Dense(2, activation=tf.nn.softmax, name='dense2')
-    model.add(tfmot.quantization.keras.quantize_annotate_layer(dense2))
+    model.add(dense2)
 
-    return tfmot.quantization.keras.quantize_apply(model)
+    return model
