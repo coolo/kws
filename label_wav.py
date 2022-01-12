@@ -188,17 +188,45 @@ def label_wav(wav, graph):
         dataset = tf.data.Dataset.from_tensor_slices(data['x'])
 
         def representative_dataset():
-            for data in dataset.batch(1).take(300):
+            for data in dataset.shuffle().batch(1).take(300):
                 yield [tf.dtypes.cast(data, tf.float32)]
 
         converter = tf.lite.TFLiteConverter.from_keras_model(model)
         converter.representative_dataset = representative_dataset
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
-        converter.target_spec.supported_types = [tf.float16]
+        converter.target_spec.supported_types = [tf.float32]
 
         tflite_model = converter.convert()
         with open('model.tflite', 'wb') as f:
             f.write(tflite_model)
+
+        model_path = os.path.join(pathlib.Path(__file__).parent.resolve(), 'model.tflite')
+        interpreter = tf.lite.Interpreter(model_path=model_path)
+        interpreter.allocate_tensors()  # Needed before execution!
+	
+        dataset = tf.data.Dataset.from_tensor_slices((data['x'], data['y']))
+        misses_lite = 0
+        misses_model = 0
+        count = 0
+        for element in dataset.take(1000):
+            mels, y = element
+            input_data = np.float32(np.reshape(mels, (1, mels.shape[0], mels.shape[1])))
+            output = interpreter.get_output_details()[0]  # Model has single output.
+            input = interpreter.get_input_details()[0]  # Model has single input.
+            interpreter.set_tensor(input['index'], input_data)
+            interpreter.invoke()
+
+            true_value = int(y.numpy()[1] * 256)
+            predictions_lite = int(interpreter.get_tensor(output["index"])[0][1] * 256 + 0.5)
+            predictions_model = int(model(input_data).numpy()[0][1] * 256 + 0.5)
+            print("true:", true_value, "lite:", bcolors.OKGREEN if predictions_lite == true_value else bcolors.FAIL, predictions_lite, bcolors.ENDC, "model:", predictions_model)
+            count += 1
+            if abs(true_value - predictions_lite) > 70:
+                misses_lite += 1
+            if abs(true_value - predictions_model) > 70:
+                misses_model += 1
+
+        print("Accuracy Model:", 100 - float(misses_model) / count, "Lite model:", 100 - float(misses_lite) / count)
     run_tflite(wav)
 
 
