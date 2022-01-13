@@ -24,7 +24,6 @@
 """
 import math
 import tensorflow as tf
-import tensorflow_model_optimization as tfmot
 
 WINDOW_SIZE_MS = 20
 WINDOW_STRIDE_MS = 10
