@@ -225,6 +225,7 @@ class RecognizeCommands(object):
 
     mels=logfbank(input_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=36,nfft=1024, winlen=0.020,winstep=0.010)
     
+    self.interpreter.reset_all_variables()
     self.interpreter.set_tensor(self.input_tensor, np.float32([mels]))
     self.interpreter.invoke()
 

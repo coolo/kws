@@ -154,11 +154,15 @@ def run_tflite(wav_glob):
 
         output = interpreter.get_output_details()[0]  # Model has single output.
         input = interpreter.get_input_details()[0]  # Model has single input.
+        interpreter.reset_all_variables()
         interpreter.set_tensor(input['index'], input_data)
+        interpreter.invoke()
+
+        predictions = interpreter.get_tensor(output["index"])[0] * 255
         if FLAGS.rename:
-            sn = short_name(mels)
+            sn = "%03d-" % int(predictions[1] * 100 / 255 + 0.5) + short_name(mels)
             counter = 0
-            if os.path.exists(sn):
+            if os.path.exists(sn + ".wav"):
                 counter = 1
                 while os.path.exists(f"{sn}-{counter}.wav"):
                     counter += 1
@@ -166,9 +170,6 @@ def run_tflite(wav_glob):
             print(f"rename {wav_path} to {sn}.wav")
             os.rename(wav_path, sn + ".wav")
         else:
-            interpreter.invoke() 
-
-            predictions = interpreter.get_tensor(output["index"])[0] * 255
             print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, int(
             predictions[1] * 100 / 255 + 0.5), wav_path, bcolors.ENDC)
 
