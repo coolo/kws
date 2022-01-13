@@ -157,15 +157,15 @@ class Fetcher(threading.Thread):
          continue
 
       current_time_ms = time.time() * 1000
-      rate = self.processor.add_data(chunk)
+      rate = int(self.processor.add_data(chunk) * 256 + 0.5)
 
-      if rate>=0:
+      if rate>0:
          print('{} Confidence {:4}'.format(time.time(), int(rate)), file=sys.stderr)
          sys.stderr.flush()
 
       time_since_last_top = current_time_ms - previous_top_label_time_
 
-      if rate > 0:
+      if rate > 1:
         if not 'STREAM' in os.environ and rate >= self.detection_threshold_ and time_since_last_top > self.processor.suppression_ms_:
           os.system('curl -s http://localhost:3838 &')
           previous_top_label_time_ = current_time_ms
