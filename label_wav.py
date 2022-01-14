@@ -214,6 +214,7 @@ def label_wav(wav, graph):
             input_data = np.float32(np.reshape(mels, (1, mels.shape[0], mels.shape[1])))
             output = interpreter.get_output_details()[0]  # Model has single output.
             input = interpreter.get_input_details()[0]  # Model has single input.
+            interpreter.reset_all_variables()
             interpreter.set_tensor(input['index'], input_data)
             interpreter.invoke()
 
