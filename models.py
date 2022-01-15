@@ -80,13 +80,13 @@ def create_model(model_settings):
         first_filter_stride_y))
 
     # GRU part
-    RNN_units = 91
+    RNN_units = 40
     model.add(tf.keras.layers.Reshape(
         (first_conv_output_height, first_conv_output_width * first_filter_count)))
     model.add(tf.keras.layers.LSTM(RNN_units, name='lstm_1', time_major=False, return_sequences=True))
 
     model.add(tf.keras.layers.Flatten())
-    first_fc_output_channels = 30
+    first_fc_output_channels = 10
 
     dense1 = tf.keras.layers.Dense(first_fc_output_channels, activation='relu', name='dense1')
     model.add(dense1)
