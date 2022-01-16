@@ -56,7 +56,7 @@ def create_model(model_settings):
     input_time_size = model_settings['spectrogram_length']
 
     # CNN part
-    first_filter_count = 198
+    first_filter_count = 192
     first_filter_height = 8
     first_filter_width = 2
     first_filter_stride_y = 3
@@ -80,13 +80,13 @@ def create_model(model_settings):
         first_filter_stride_y))
 
     # GRU part
-    RNN_units = 35
+    RNN_units = 33
     model.add(tf.keras.layers.Reshape(
         (first_conv_output_height, first_conv_output_width * first_filter_count)))
     model.add(tf.keras.layers.LSTM(RNN_units, name='lstm_1', time_major=False, return_sequences=True))
 
     model.add(tf.keras.layers.Flatten())
-    first_fc_output_channels = 8
+    first_fc_output_channels = 6
 
     dense1 = tf.keras.layers.Dense(first_fc_output_channels, activation='relu', name='dense1')
     model.add(dense1)
