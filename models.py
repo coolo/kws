@@ -56,7 +56,7 @@ def create_model(model_settings):
     input_time_size = model_settings['spectrogram_length']
 
     # CNN part
-    first_filter_count = 192
+    first_filter_count = 96
     first_filter_height = 8
     first_filter_width = 2
     first_filter_stride_y = 3
