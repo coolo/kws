@@ -10,11 +10,11 @@ for file in $(ls -1 *.wav); do
 			break
 			;;
 		s)
-			mv $file schlecht
+			mv -n $file schlecht
 			break
 			;;
 		g)
-			mv $file gut
+			mv -n $file gut
 			break
 			;;
 		n)	

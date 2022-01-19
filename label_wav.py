@@ -163,6 +163,9 @@ def run_tflite(wav_glob):
         if FLAGS.rename:
             sn = "%03d-" % int(predictions[1] * 100 / 255 + 0.5) + short_name(mels)
             counter = 0
+            if wav_path == sn + ".wav":
+                print(f"Leave {wav_path}")
+                continue
             if os.path.exists(sn + ".wav"):
                 counter = 1
                 while os.path.exists(f"{sn}-{counter}.wav"):
