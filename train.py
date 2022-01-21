@@ -75,7 +75,7 @@ def main(_):
         y_train = data['y']
     plotter2 = ConfusionMatrixDisplay(X_val=x_train, Y_val=y_train)
 
-    model.fit(x_train, y_train, epochs=400, batch_size=100, callbacks=[earlystop, plotter2, saver])
+    model.fit(x_train, y_train, epochs=900, batch_size=100, callbacks=[earlystop, plotter2, saver])
 
 
 if __name__ == '__main__':
