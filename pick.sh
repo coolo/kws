@@ -10,11 +10,15 @@ for file in $(ls -1 *.wav); do
 			break
 			;;
 		s)
-			mv -n $file schlecht
+			if test -f schlecht/$file; then
+			    mv $file schlecht/$RANDOM.wav
+			else
+			    mv -n $file schlecht
+			fi
 			break
 			;;
 		g)
-			mv -n $file gut
+			mv -n $file gut || mv -n file gut/$RANDOM.wav
 			break
 			;;
 		n)	

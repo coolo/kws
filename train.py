@@ -55,14 +55,11 @@ def main(_):
 
     # Instantiate an optimizer.
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.00007)
-    model.compile(loss='binary_crossentropy',
-                  optimizer=optimizer, metrics=["accuracy"])
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=["accuracy"])
     model.save('saved.model')
 
-    earlystop = tf.keras.callbacks.EarlyStopping(
-        monitor='loss', patience=FLAGS.epochs, restore_best_weights=True)
-    saver = tf.keras.callbacks.ModelCheckpoint(
-        filepath='saved.model.weighs.{epoch:04d}.h5',  save_weights_only=True, save_best_only=True, monitor='accuracy')
+    earlystop = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=FLAGS.epochs, restore_best_weights=True)
+    saver = tf.keras.callbacks.ModelCheckpoint(filepath='saved.model.weighs.{epoch:04d}.h5',  save_weights_only=True, save_best_only=True, monitor='accuracy')
     if FLAGS.rescan:
         audio_processor = input_data.AudioProcessor(
             FLAGS.data_good, FLAGS.data_bad, model_settings)
@@ -75,7 +72,7 @@ def main(_):
         y_train = data['y']
     plotter2 = ConfusionMatrixDisplay(X_val=x_train, Y_val=y_train)
 
-    model.fit(x_train, y_train, epochs=900, batch_size=100, callbacks=[earlystop, plotter2, saver])
+    model.fit(x_train, y_train, epochs=900, batch_size=100, callbacks=[earlystop, saver])
 
 
 if __name__ == '__main__':
