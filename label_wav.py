@@ -182,7 +182,7 @@ def run_tflite(wav_glob):
 
 def label_wav(wav, graph):
     """Loads the model and labels, and runs the inference to print predictions."""
-    if FLAGS.graph:
+    if graph:
         model = tf.keras.models.load_model('saved.model')
         model.load_weights(graph)
         # fixed batch size

@@ -50,16 +50,21 @@ def main(_):
     logger.setLevel('INFO')
 
     model_settings = models.prepare_model_settings(FLAGS.dct_coefficient_count)
-    model = models.create_model(model_settings)
-    model.summary()
 
-    # Instantiate an optimizer.
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.00007)
-    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=["accuracy"])
-    model.save('saved.model')
+    if True:
+       model = tf.keras.models.load_model('saved.model')
+       model.load_weights('saved.model/best.weights.h5')
+    else:
+       model = models.create_model(model_settings)
+       model.summary()
+
+       # Instantiate an optimizer.
+       optimizer = tf.keras.optimizers.Adam(learning_rate=0.00007)
+       model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=["accuracy"])
+       model.save('saved.model')
 
     earlystop = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=FLAGS.epochs, restore_best_weights=True)
-    saver = tf.keras.callbacks.ModelCheckpoint(filepath='saved.model.weighs.{epoch:04d}.h5',  save_weights_only=True, save_best_only=True, monitor='accuracy')
+    saver = tf.keras.callbacks.ModelCheckpoint(filepath='saved.model/best.weights.h5', save_weights_only=True, save_best_only=True, monitor='loss')
     if FLAGS.rescan:
         audio_processor = input_data.AudioProcessor(
             FLAGS.data_good, FLAGS.data_bad, model_settings)

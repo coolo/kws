@@ -79,8 +79,8 @@ def create_model(model_settings):
         (input_time_size - first_filter_height + first_filter_stride_y) /
         first_filter_stride_y))
 
-    # GRU part
-    RNN_units = 33
+    # RNN part
+    RNN_units = 6
     model.add(tf.keras.layers.Reshape(
         (first_conv_output_height, first_conv_output_width * first_filter_count)))
     model.add(tf.keras.layers.LSTM(RNN_units, name='lstm_1', time_major=False, return_sequences=True))
