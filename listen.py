@@ -169,7 +169,7 @@ class Fetcher(threading.Thread):
 
       time_since_last_top = current_time_ms - previous_top_label_time_
 
-      if rate > 1:
+      if rate > 10:
         if not 'STREAM' in os.environ and rate >= self.detection_threshold_ and time_since_last_top > self.processor.suppression_ms_:
           os.system('curl -s http://localhost:3838 &')
           previous_top_label_time_ = current_time_ms

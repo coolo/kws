@@ -6,7 +6,7 @@ rm -f stop
 function listen {
  (  while ! test -f stop; do 
      echo "Starting $1"
-     STREAM=$1 python listen.py --detection_threshold 1
+     STREAM=$1 python listen.py
      sleep 10
   done ) &
 }
