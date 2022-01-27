@@ -19,6 +19,7 @@
 #
 
 import argparse
+import os
 import sys
 
 import numpy as np
@@ -51,7 +52,7 @@ def main(_):
 
     model_settings = models.prepare_model_settings(FLAGS.dct_coefficient_count)
 
-    if True:
+    if os.path.exists('saved.model'):
        model = tf.keras.models.load_model('saved.model')
        model.load_weights('saved.model/best.weights.h5')
     else:
@@ -77,7 +78,7 @@ def main(_):
         y_train = data['y']
     plotter2 = ConfusionMatrixDisplay(X_val=x_train, Y_val=y_train)
 
-    model.fit(x_train, y_train, epochs=900, batch_size=100, callbacks=[earlystop, saver])
+    model.fit(x_train, y_train, epochs=5000, batch_size=100, callbacks=[earlystop, saver])
 
 
 if __name__ == '__main__':
