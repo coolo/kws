@@ -38,6 +38,7 @@ import wave
 import struct
 from python_speech_features import logfbank
 import pathlib
+import hashlib
 
 FLAGS = None
 
@@ -140,6 +141,11 @@ def run_tflite(wav_glob):
         # ignore first character - it's too noisy
         return shortname[1:]
 
+    def md5(mels):
+        arr = np.uint8((np.clip(mels + 10, -10, 10) / 20 + 0.5) * 256).flatten()
+        md5 = hashlib.md5(arr.astype("uint8"))
+        return md5.hexdigest()[0:6]
+
     for wav_path in sorted(glob.glob(wav_glob)):
         w = wave.open(wav_path)
         astr = w.readframes(w.getframerate())
@@ -161,18 +167,12 @@ def run_tflite(wav_glob):
 
         predictions = interpreter.get_tensor(output["index"])[0] * 255
         if FLAGS.rename:
-            sn = "%03d-" % int(predictions[1] * 100 / 255 + 0.5) + short_name(mels)
-            counter = 0
-            if wav_path == sn + ".wav":
+            sn = "%03d-" % int(predictions[1] * 100 / 255 + 0.5) + short_name(mels) + "-" + md5(mels) + ".wav"
+            if wav_path == sn:
                 print(f"Leave {wav_path}")
                 continue
-            if os.path.exists(sn + ".wav"):
-                counter = 1
-                while os.path.exists(f"{sn}-{counter}.wav"):
-                    counter += 1
-                sn = sn + f"-{counter}"
-            print(f"rename {wav_path} to {sn}.wav")
-            os.rename(wav_path, sn + ".wav")
+            print(f"rename {wav_path} to {sn}")
+            os.rename(wav_path, sn)
         else:
             print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, int(
             predictions[1] * 100 / 255 + 0.5), wav_path, bcolors.ENDC)
