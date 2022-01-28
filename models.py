@@ -80,7 +80,7 @@ def create_model(model_settings):
         first_filter_stride_y))
 
     # RNN part
-    RNN_units = 4
+    RNN_units = 3
     model.add(tf.keras.layers.Reshape(
         (first_conv_output_height, first_conv_output_width * first_filter_count)))
     model.add(tf.keras.layers.LSTM(RNN_units, name='lstm_1', time_major=False, return_sequences=True))
@@ -90,7 +90,7 @@ def create_model(model_settings):
 
     dense1 = tf.keras.layers.Dense(first_fc_output_channels, activation='relu', name='dense1')
     model.add(dense1)
-    model.add(tf.keras.layers.Dropout(0.1))
+    model.add(tf.keras.layers.Dropout(0.2))
 
     # Output layer
     dense2 = tf.keras.layers.Dense(2, activation=tf.nn.softmax, name='dense2')
