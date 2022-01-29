@@ -25,11 +25,12 @@ import sys
 import numpy as np
 import tensorflow as tf
 
-import input_data
+from input_data import get_data
 import models
 
 FLAGS = None
 SAMPLE_RATE = 16000
+
 
 class ConfusionMatrixDisplay(tf.keras.callbacks.Callback):
     def __init__(self, X_val, Y_val):
@@ -43,7 +44,9 @@ class ConfusionMatrixDisplay(tf.keras.callbacks.Callback):
         conf_matrix = tf.math.confusion_matrix(max_y, max_pred).numpy()
         bad = conf_matrix[0]
         good = conf_matrix[1]
-        print("        misses: {}/{} gut and {}/{} schlecht".format(good[0], good[0] + good[1], bad[1], bad[0] + bad[1]))
+        print("        misses: {}/{} gut and {}/{} schlecht".format(
+            good[0], good[0] + good[1], bad[1], bad[0] + bad[1]))
+
 
 def main(_):
     # We want to see all the logging messages for this tutorial.
@@ -53,32 +56,36 @@ def main(_):
     model_settings = models.prepare_model_settings(FLAGS.dct_coefficient_count)
 
     if os.path.exists('saved.model'):
-       model = tf.keras.models.load_model('saved.model')
-       model.load_weights('saved.model/best.weights.h5')
+        model = tf.keras.models.load_model('saved.model')
+        model.load_weights('saved.model/best.weights.h5')
     else:
-       model = models.create_model(model_settings)
-       model.summary()
+        model = models.create_model(model_settings)
+        model.summary()
 
-       # Instantiate an optimizer.
-       optimizer = tf.keras.optimizers.Adam(learning_rate=0.00007)
-       model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=["accuracy"])
-       model.save('saved.model')
+        # Instantiate an optimizer.
+        optimizer = tf.keras.optimizers.Adam(learning_rate=0.00007)
+        model.compile(loss='binary_crossentropy',
+                      optimizer=optimizer, metrics=["accuracy"])
+        model.save('saved.model')
 
-    earlystop = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=FLAGS.epochs, restore_best_weights=True)
-    saver = tf.keras.callbacks.ModelCheckpoint(filepath='saved.model/best.weights.h5', save_weights_only=True, save_best_only=True, monitor='loss')
+    earlystop = tf.keras.callbacks.EarlyStopping(
+        monitor='loss', patience=FLAGS.epochs, restore_best_weights=True)
+    saver = tf.keras.callbacks.ModelCheckpoint(
+        filepath='saved.model/best.weights.h5', save_weights_only=True, save_best_only=True, monitor='loss')
     if FLAGS.rescan:
-        audio_processor = input_data.AudioProcessor(
-            FLAGS.data_good, FLAGS.data_bad, model_settings)
-
-        x_train, y_train = audio_processor.get_data(model_settings)
-        np.savez('all-waves.npz', x=x_train, y=y_train)
+        if os.path.exists('all-waves.npz'):
+            data = np.load('all-waves.npz', mmap_mode='r')
+        x_train, y_train, ids = get_data(
+            FLAGS.data_good, FLAGS.data_bad, model_settings, old_x=data['x'], old_ids=data.get('id'))
+        np.savez('all-waves.npz', x=x_train, y=y_train, id=ids)
     else:
         data = np.load('all-waves.npz', mmap_mode='r')
         x_train = data['x']
         y_train = data['y']
     plotter2 = ConfusionMatrixDisplay(X_val=x_train, Y_val=y_train)
 
-    model.fit(x_train, y_train, epochs=5000, batch_size=100, callbacks=[earlystop, saver])
+    model.fit(x_train, y_train, epochs=5000,
+              batch_size=100, callbacks=[earlystop, saver])
 
 
 if __name__ == '__main__':
