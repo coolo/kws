@@ -67,10 +67,8 @@ def create_model(model_settings):
     model.add(tf.keras.layers.Reshape((input_time_size, input_frequency_size, 1)))
 
     conv1 = tf.keras.layers.Conv2D(first_filter_count, kernel_size=(first_filter_height, first_filter_width),
-                                      strides=(first_filter_stride_y, first_filter_stride_x), padding='valid', activation='relu', name='conv1')
+                                      strides=(first_filter_stride_y, first_filter_stride_x), padding='valid', activation='relu', name='conv1', kernel_regularizer=tf.keras.regularizers.l2(0.001))
     model.add(conv1)
-
-    model.add(tf.keras.layers.Dropout(0.3))
 
     first_conv_output_width = int(math.floor(
         (input_frequency_size - first_filter_width + first_filter_stride_x) /
@@ -80,17 +78,16 @@ def create_model(model_settings):
         first_filter_stride_y))
 
     # RNN part
-    RNN_units = 3
+    RNN_units = 2
     model.add(tf.keras.layers.Reshape(
         (first_conv_output_height, first_conv_output_width * first_filter_count)))
     model.add(tf.keras.layers.LSTM(RNN_units, name='lstm_1', time_major=False, return_sequences=True))
 
     model.add(tf.keras.layers.Flatten())
-    first_fc_output_channels = 4
+    first_fc_output_channels = 5
 
-    dense1 = tf.keras.layers.Dense(first_fc_output_channels, activation='relu', name='dense1')
+    dense1 = tf.keras.layers.Dense(first_fc_output_channels, activation='relu', name='dense1', kernel_regularizer=tf.keras.regularizers.l2(0.001))
     model.add(dense1)
-    model.add(tf.keras.layers.Dropout(0.2))
 
     # Output layer
     dense2 = tf.keras.layers.Dense(2, activation=tf.nn.softmax, name='dense2')

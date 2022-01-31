@@ -54,6 +54,7 @@ class AudioProcessor(object):
         random.seed(RANDOM_SEED)
         self.data = []
         self.read_one_half(self.data_bad, 0)
+        #self.read_one_half('ignored', 0)
         self.read_one_half(self.data_good, 1)
 
     def read_one_half(self, dir, label):
@@ -62,7 +63,6 @@ class AudioProcessor(object):
         for wav_path in gfile.Glob(search_path):
             id = '-'.join(wav_path.split('-')[-2:])
             if id in self.old:
-                print(wav_path, 'reuse')
                 mels = self.old[id]
             else:
                 print(wav_path, 'read')

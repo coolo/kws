@@ -69,7 +69,7 @@ def main(_):
         model.save('saved.model')
 
     earlystop = tf.keras.callbacks.EarlyStopping(
-        monitor='loss', patience=FLAGS.epochs, restore_best_weights=True)
+        monitor='loss', patience=FLAGS.epochs, restore_best_weights=True, min_delta=0.0001)
     saver = tf.keras.callbacks.ModelCheckpoint(
         filepath='saved.model/best.weights.h5', save_weights_only=True, save_best_only=True, monitor='loss')
     if FLAGS.rescan:
