@@ -219,17 +219,18 @@ class RecognizeCommands(object):
     """Process audio data."""
     if not data_bytes:
       return
-    #t1 = time.time() * 1000
+    t1 = time.time() * 1000
     input_data = np.frombuffer(data_bytes, dtype='i2')/pow(2,15)
 
     mels=logfbank(input_data, 16000, lowfreq=50.0, highfreq=4200.0,nfilt=36,nfft=1024, winlen=0.020,winstep=0.010)
+    mels = [np.float32(np.uint8((np.clip(mels + 10, -10, 10) / 20 + 0.5) * 256 + 128))/256]
     
     self.interpreter.reset_all_variables()
-    self.interpreter.set_tensor(self.input_tensor, np.float32([mels]))
+    self.interpreter.set_tensor(self.input_tensor, mels)
     self.interpreter.invoke()
 
     predictions = self.interpreter.get_tensor(self.output_tensor)[0]
-    #print('model', time.time() * 1000 - bt * 1000, file=sys.stderr)
+    print('model', time.time() * 1000 - t1, predictions, file=sys.stderr)
 
     return predictions[1]
 

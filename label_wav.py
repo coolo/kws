@@ -28,7 +28,6 @@ python tensorflow/examples/speech_commands/label_wav.py \
 
 """
 
-from numpy.core.shape_base import block
 import tensorflow as tf
 import argparse
 import numpy as np
@@ -52,6 +51,25 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+def calculate_one_sec_mels(w, oneseconly=True):
+    assert(w.getnchannels() == 1)
+    assert(w.getsampwidth() == 2)
+    assert(w.getframerate() == 16000)
+
+    frames = w.getnframes()
+    if oneseconly:
+        frames = w.getframerate()
+    astr = w.readframes(frames)
+
+    # convert binary chunks to short
+    a = struct.unpack("%ih" % (frames * w.getnchannels()), astr)
+    a = [float(val) / pow(2, 15) for val in a]
+    wav_data = np.array(a, dtype=float)
+    nfft = 1024
+    mels = logfbank(wav_data, w.getframerate(), lowfreq=50.0,
+                    highfreq=4200.0, nfilt=36, winlen=0.020, winstep=0.010, nfft=nfft)
+    mel_clipped = np.uint8((np.clip(mels + 10, -10, 10) / 20 + 0.5) * 256 + 128)
+    return mels, np.float32(mel_clipped) / 256
 
 def run_tflite(wav_glob):
     # Feed the audio data as input to the graph.
@@ -148,16 +166,9 @@ def run_tflite(wav_glob):
 
     for wav_path in sorted(glob.glob(wav_glob)):
         w = wave.open(wav_path)
-        astr = w.readframes(w.getframerate())
-        # convert binary chunks to short
-        a = struct.unpack("%ih" % (w.getframerate() * w.getnchannels()), astr)
-        a = [float(val) / pow(2, 15) for val in a]
-        wav_data = np.array(a, dtype=float)
-        nfft = 1024
-        mels = logfbank(wav_data, w.getframerate(), lowfreq=50.0,
-                        highfreq=4200.0, nfilt=36, winlen=0.020, winstep=0.010, nfft=nfft)
-        
-        input_data = np.float32(np.reshape(mels, (1, mels.shape[0], mels.shape[1])))
+        mels, mel_clipped = calculate_one_sec_mels(w)
+
+        input_data = np.float32(np.reshape(mel_clipped, (1, mels.shape[0], mels.shape[1]))) 
 
         output = interpreter.get_output_details()[0]  # Model has single output.
         input = interpreter.get_input_details()[0]  # Model has single input.
@@ -165,7 +176,7 @@ def run_tflite(wav_glob):
         interpreter.set_tensor(input['index'], input_data)
         interpreter.invoke()
 
-        predictions = interpreter.get_tensor(output["index"])[0] * 255
+        predictions = interpreter.get_tensor(output["index"])[0] * 256
         if FLAGS.rename:
             sn = "%03d-" % int(predictions[1] * 100 / 255 + 0.5) + short_name(mels) + "-" + md5(mels) + ".wav"
             if wav_path == sn:
@@ -215,7 +226,7 @@ def label_wav(wav, graph):
         count = 0
         for element in dataset.take(1000):
             mels, y = element
-            input_data = np.float32(np.reshape(mels, (1, mels.shape[0], mels.shape[1])))
+            input_data = np.float32(np.reshape(mels, (1, mels.shape[0], mels.shape[1]))) / 256
             output = interpreter.get_output_details()[0]  # Model has single output.
             input = interpreter.get_input_details()[0]  # Model has single input.
             interpreter.reset_all_variables()

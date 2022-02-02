@@ -82,6 +82,7 @@ class AudioProcessor(object):
                 mels = np.reshape(
                     mels, (self.model_settings['spectrogram_length'], self.model_settings['dct_coefficient_count']))
                 w.close()
+                mels = np.uint8((np.clip(mels + 10, -10, 10) / 20 + 0.5) * 256 + 128)
             self.data.append({'label': label, 'mels': mels, 'id': id})
 
     def get_data(self):
