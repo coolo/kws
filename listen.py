@@ -36,10 +36,6 @@ import alsaaudio
 
 logger = logging.getLogger('audio')
 
-def sample_width_to_string(sample_width):
-  """Convert sample width (bytes) to ALSA format string."""
-  return {1: 's8', 2: 's16', 4: 's32'}[sample_width]
-
 class Recorder(threading.Thread):
   """Stream audio from microphone in a background thread and run processing
     callbacks. It reads audio in a configurable format from the microphone,
@@ -81,9 +77,9 @@ class Recorder(threading.Thread):
        stream=os.environ['STREAM']
        if stream.endswith('.m3u'):
           url_cmd='-@'
-       p = subprocess.Popen('curl -s -L "{}" | mpg123 -s -r44100 {} -'.format(stream,url_cmd), shell=True,  stdout=subprocess.PIPE, close_fds=True)
+       p = subprocess.Popen('curl -s -L "{}" | mpg123 -m -s -r44100 {} -'.format(stream,url_cmd), shell=True,  stdout=subprocess.PIPE, close_fds=True)
        self.inp = p.stdout
-       self._channels = 2
+       self._channels = 1
        self._sample_rate_hz = 44100
 
     self._conv_state = None
@@ -218,7 +214,6 @@ class RecognizeCommands(object):
     self.interpreter.allocate_tensors()
     self.output_tensor = self.interpreter.get_output_details()[0]['index']
     self.input_tensor = self.interpreter.get_input_details()[0]['index']
-    self.previous_results_ = deque()
 
   def add_data(self, data_bytes):
     """Process audio data."""
