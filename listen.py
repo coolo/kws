@@ -77,7 +77,7 @@ class Recorder(threading.Thread):
        stream=os.environ['STREAM']
        if stream.endswith('.m3u'):
           url_cmd='-@'
-       p = subprocess.Popen('curl -s -L "{}" | mpg123 -m -s -r44100 {} -'.format(stream,url_cmd), shell=True,  stdout=subprocess.PIPE, close_fds=True)
+       p = subprocess.Popen('curl -s -L "{}" | mpg123 -m -s -r44100 {} - 2>/dev/null'.format(stream,url_cmd), shell=True,  stdout=subprocess.PIPE, close_fds=True)
        self.inp = p.stdout
        self._channels = 1
        self._sample_rate_hz = 44100
@@ -160,7 +160,8 @@ class Fetcher(threading.Thread):
       rate = int(self.processor.add_data(chunk) * 256 + 0.5)
 
       if rate>0:
-         print('{} Confidence {:4}'.format(time.time(), int(rate)), file=sys.stderr)
+         stream=os.environ.get('STREAM', '(None)')
+         print('{} Confidence {} {:4}'.format(time.time(), stream, int(rate)), file=sys.stderr)
          sys.stderr.flush()
 
       time_since_last_top = current_time_ms - previous_top_label_time_
@@ -230,7 +231,7 @@ class RecognizeCommands(object):
     self.interpreter.invoke()
 
     predictions = self.interpreter.get_tensor(self.output_tensor)[0]
-    print('model', time.time() * 1000 - t1, predictions, file=sys.stderr)
+    #print('model', time.time() * 1000 - t1, predictions, file=sys.stderr)
 
     return predictions[1]
 

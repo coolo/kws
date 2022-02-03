@@ -37,7 +37,6 @@ listen http://direct.franceculture.fr/live/franceculture-midfi.mp3
 listen http://mfmwr-022.ice.infomaniak.ch/mfmwr-022.mp3
 listen http://mfmwr-019.ice.infomaniak.ch/mfmwr-019.mp3
 listen https://scdn.nrjaudio.fm/adwz1/fr/30617/mp3_128.mp3
-listen http://rock2000.stream.ouifm.fr/ouifmrock2000.mp3
 listen https://stream.rfm.fr/rfm-wr6.mp3
 listen https://hendrikjansen.nl/radioluisterlijst/catalonieradiostations.m3u
 listen https://hendrikjansen.nl/radioluisterlijst/frieslandstreekzenders.m3u
