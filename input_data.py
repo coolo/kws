@@ -73,16 +73,14 @@ class AudioProcessor(object):
                                   (w.getframerate() * w.getnchannels()), astr)
                 a = [float(val) / pow(2, 15) for val in a]
                 wav_data = np.array(a, dtype=float)
-                mels = logfbank(wav_data, w.getframerate(), lowfreq=50.0, highfreq=4200.0, nfilt=self.model_settings['dct_coefficient_count'],
+                mels = logfbank(wav_data, w.getframerate(), lowfreq=20.0, nfilt=self.model_settings['dct_coefficient_count'],
                                 winlen=WINDOW_SIZE_MS/1000,
                                 winstep=WINDOW_STRIDE_MS/1000,
-                                nfft=1024)
+                                nfft=512, preemph=0)
                 # very likely pointless
                 mels = mels[:self.model_settings['spectrogram_length']]
-                mels = np.reshape(
-                    mels, (self.model_settings['spectrogram_length'], self.model_settings['dct_coefficient_count']))
+                mels = np.float32(np.reshape(mels, (self.model_settings['spectrogram_length'], self.model_settings['dct_coefficient_count'])))
                 w.close()
-                mels = np.uint8((np.clip(mels + 10, -10, 10) / 20 + 0.5) * 256 + 128)
             self.data.append({'label': label, 'mels': mels, 'id': id})
 
     def get_data(self):

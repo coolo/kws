@@ -59,21 +59,19 @@ for wav in sorted(glob.glob('/mnt/rpi/wavs/*.wav')):
     a = struct.unpack("%ih" % (frames * w.getnchannels()), astr)
     a = [float(val) / pow(2, 15) for val in a]
     wav_data = np.array(a, dtype=float)
-    nfft = 1024
     slices = int((w.getnframes() - w.getframerate() ) / w.getframerate() / winstep)
-    mels_reshaped = np.zeros((slices, 99, 36), dtype=np.uint8)
+    mels_reshaped = np.zeros((slices, 99, 36), dtype=np.float32)
 
     for slice in range(0, slices):
       start = int(slice*winstep*w.getframerate())
       end = start + w.getframerate()
       slice_data = wav_data[start:end]
-      mels = logfbank(slice_data, w.getframerate(), lowfreq=50.0,
-                      highfreq=4200.0, nfilt=36, winlen=0.020, winstep=0.010, nfft=nfft)
-      mel_clipped = np.uint8((np.clip(mels + 10, -10, 10) / 20 + 0.5) * 256 + 128)
-      mels_reshaped[slice] = mel_clipped
+      mels = logfbank(slice_data, w.getframerate(), lowfreq=20.0,
+                       nfilt=36, winlen=0.020, winstep=0.010, nfft=512, preemph=0)
+      mels_reshaped[slice] = np.float32(mels)
     np.savez_compressed(wav + '.npz', mels=mels_reshaped)
 
-  mels_reshaped = np.float32(mels_reshaped)/256
+  mels_reshaped = np.float32(mels_reshaped)
   predictions = np.uint16(model.predict(mels_reshaped)*256+0.5)
   start = 0
   while start < mels_reshaped.shape[0]:

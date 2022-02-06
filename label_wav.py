@@ -65,11 +65,10 @@ def calculate_one_sec_mels(w, oneseconly=True):
     a = struct.unpack("%ih" % (frames * w.getnchannels()), astr)
     a = [float(val) / pow(2, 15) for val in a]
     wav_data = np.array(a, dtype=float)
-    nfft = 1024
-    mels = logfbank(wav_data, w.getframerate(), lowfreq=50.0,
-                    highfreq=4200.0, nfilt=36, winlen=0.020, winstep=0.010, nfft=nfft)
-    mel_clipped = np.uint8((np.clip(mels + 10, -10, 10) / 20 + 0.5) * 256 + 128)
-    return mels, np.float32(mel_clipped) / 256
+    nfft = 512
+    mels = logfbank(wav_data, w.getframerate(), lowfreq=20.0,
+                    nfilt=36, winlen=0.020, winstep=0.010, nfft=nfft,  preemph=0)
+    return np.float32(mels)
 
 def run_tflite(wav_glob):
     # Feed the audio data as input to the graph.
@@ -166,9 +165,9 @@ def run_tflite(wav_glob):
 
     for wav_path in sorted(glob.glob(wav_glob)):
         w = wave.open(wav_path)
-        mels, mel_clipped = calculate_one_sec_mels(w)
+        mels = calculate_one_sec_mels(w)
 
-        input_data = np.float32(np.reshape(mel_clipped, (1, mels.shape[0], mels.shape[1]))) 
+        input_data = np.reshape(mels, (1, mels.shape[0], mels.shape[1]))
 
         output = interpreter.get_output_details()[0]  # Model has single output.
         input = interpreter.get_input_details()[0]  # Model has single input.
@@ -226,7 +225,7 @@ def label_wav(wav, graph):
         count = 0
         for element in dataset.take(1000):
             mels, y = element
-            input_data = np.float32(np.reshape(mels, (1, mels.shape[0], mels.shape[1]))) / 256
+            input_data = np.float32(np.reshape(mels, (1, mels.shape[0], mels.shape[1])))
             output = interpreter.get_output_details()[0]  # Model has single output.
             input = interpreter.get_input_details()[0]  # Model has single input.
             interpreter.reset_all_variables()

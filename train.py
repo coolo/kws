@@ -75,13 +75,13 @@ def main(_):
     if FLAGS.rescan:
         if os.path.exists('all-waves.npz'):
             data = np.load('all-waves.npz', mmap_mode='r')
+        else:
+            data = {'id': [], 'x': []}
         x_train, y_train, ids = get_data(
             FLAGS.data_good, FLAGS.data_bad, model_settings, old_x=data['x'], old_ids=data.get('id'))
         np.savez('all-waves.npz', x=x_train, y=y_train, id=ids)
-        x_train = np.float32(x_train)/256
     else:
         data = np.load('all-waves.npz', mmap_mode='r')
-        x_train = np.float32(data['x'])/256
         y_train = data['y']
     plotter2 = ConfusionMatrixDisplay(X_val=x_train, Y_val=y_train)
 
