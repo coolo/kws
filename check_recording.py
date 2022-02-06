@@ -51,6 +51,9 @@ for wav in sorted(glob.glob('/mnt/rpi/wavs/*.wav')):
     assert(w.getframerate() == 16000)
     frames = w.getnframes()
     astr = w.readframes(frames)
+    if len(astr) < frames * w.getnchannels() * 2:
+        print(wav, 'is incomplete')
+        continue
 
     # convert binary chunks to short
     a = struct.unpack("%ih" % (frames * w.getnchannels()), astr)
@@ -89,7 +92,7 @@ for wav in sorted(glob.glob('/mnt/rpi/wavs/*.wav')):
       new_wav.setparams(w2.getparams())
       new_wav.writeframes(astr)
       new_wav.close()
-      start += 500
+      start += 50
     else:
       start += 1
 
