@@ -22,7 +22,6 @@ import os
 
 import numpy as np
 from python_speech_features import logfbank
-from label_wav import calculate_one_sec_mels
 import glob
 import wave
 import struct

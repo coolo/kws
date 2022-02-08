@@ -51,7 +51,9 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-def calculate_one_sec_mels(w, oneseconly=True):
+def calculate_one_sec_mels(wav_path, oneseconly=True, after=None, before=None, save_as=None):
+    w = wave.open(wav_path)
+
     assert(w.getnchannels() == 1)
     assert(w.getsampwidth() == 2)
     assert(w.getframerate() == 16000)
@@ -60,6 +62,22 @@ def calculate_one_sec_mels(w, oneseconly=True):
     if oneseconly:
         frames = w.getframerate()
     astr = w.readframes(frames)
+    if after:
+        astr = astr + after
+        astr = astr[len(after):]
+        if save_as:
+            new_wav = wave.open(save_as + '-after.wav', 'wb')
+            new_wav.setparams(w.getparams())
+            new_wav.writeframes(astr)
+            new_wav.close()
+    if before:
+        astr = before + astr
+        astr = astr[0:frames*2]
+        if save_as:
+            new_wav = wave.open(save_as + '-before.wav', 'wb')
+            new_wav.setparams(w.getparams())
+            new_wav.writeframes(astr)
+            new_wav.close()
 
     # convert binary chunks to short
     a = struct.unpack("%ih" % (frames * w.getnchannels()), astr)
@@ -163,9 +181,13 @@ def run_tflite(wav_glob):
         md5 = hashlib.md5(arr.astype("uint8"))
         return md5.hexdigest()[0:6]
 
-    for wav_path in sorted(glob.glob(wav_glob)):
-        w = wave.open(wav_path)
-        mels = calculate_one_sec_mels(w)
+    silence_path = os.path.join(pathlib.Path(__file__).parent.resolve(), 'silence.wav')
+    w = wave.open(silence_path)
+    frames = int(w.getframerate() * 0.08)
+    astr = w.readframes(frames)
+  
+    def predict_wav(wav_path, before=None, after=None, save_as=None):
+        mels = calculate_one_sec_mels(wav_path, before=before, after=after, save_as=save_as)
 
         input_data = np.reshape(mels, (1, mels.shape[0], mels.shape[1]))
 
@@ -175,17 +197,32 @@ def run_tflite(wav_glob):
         interpreter.set_tensor(input['index'], input_data)
         interpreter.invoke()
 
-        predictions = interpreter.get_tensor(output["index"])[0] * 256
+        predictions = np.int8(interpreter.get_tensor(output["index"])[0] * 100 + 0.5)
+        return mels, predictions
+
+    for wav_path in sorted(glob.glob(wav_glob)):
+        mels, predictions = predict_wav(wav_path)
+            
         if FLAGS.rename:
-            sn = "%03d-" % int(predictions[1] * 100 / 255 + 0.5) + short_name(mels) + "-" + md5(mels) + ".wav"
+            prefix = "%03d-" % predictions[1]
+            if FLAGS.move:
+                _, predictions_after = predict_wav(wav_path, after=astr)
+                _, predictions_before = predict_wav(wav_path, before=astr)
+                prefix += "%03d-" % predictions_before[1]
+                prefix += "%03d-" % predictions_after[1]
+            sn = prefix + short_name(mels) + "-" + md5(mels) + ".wav"
+            if FLAGS.output_moves:
+                predict_wav(wav_path, after=astr, save_as=sn)
+                predict_wav(wav_path, before=astr, save_as=sn)
+
             if wav_path == sn:
                 print(f"Leave {wav_path}")
                 continue
             print(f"rename {wav_path} to {sn}")
             os.rename(wav_path, sn)
         else:
-            print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL, int(
-            predictions[1] * 100 / 255 + 0.5), wav_path, bcolors.ENDC)
+            print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL,
+            predictions[1], wav_path, bcolors.ENDC)
 
     return 0
 
@@ -258,8 +295,11 @@ if __name__ == '__main__':
     parser.add_argument(
         '--graph', type=str, default=None, help='Model to use for identification.')
     parser.add_argument('--rename', dest='rename', action='store_true')
+    parser.add_argument('--move', dest='move', action='store_true', help='Check also with 0.1 before and after')
+    parser.add_argument('--output_moves', dest='output_moves', action='store_true', help='Output the -before and -after files')
     parser.set_defaults(rename=False)
+    parser.set_defaults(move=False)
+    parser.set_defaults(output_moves=False)
 
     FLAGS, unparsed = parser.parse_known_args()
-    print(FLAGS)
     main(unparsed)
