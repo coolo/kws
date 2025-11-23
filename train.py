@@ -55,9 +55,8 @@ def main(_):
 
     model_settings = models.prepare_model_settings(FLAGS.dct_coefficient_count)
 
-    if os.path.exists('saved.model'):
-        model = tf.keras.models.load_model('saved.model')
-        model.load_weights('saved.model/best.weights.h5')
+    if os.path.exists('saved.model.keras'):
+        model = tf.keras.models.load_model('saved.model.keras')
     else:
         model = models.create_model(model_settings)
         model.summary()
@@ -66,7 +65,7 @@ def main(_):
         optimizer = tf.keras.optimizers.Adam(learning_rate=0.00007)
         model.compile(loss='binary_crossentropy',
                       optimizer=optimizer, metrics=["accuracy"])
-        model.save('saved.model')
+        model.save('saved.model.keras')
 
     earlystop = tf.keras.callbacks.EarlyStopping(
         monitor='loss', patience=FLAGS.epochs, restore_best_weights=True, min_delta=0.0001)
@@ -82,6 +81,7 @@ def main(_):
         np.savez('all-waves.npz', x=x_train, y=y_train, id=ids)
     else:
         data = np.load('all-waves.npz', mmap_mode='r')
+        x_train = data['x']
         y_train = data['y']
     plotter2 = ConfusionMatrixDisplay(X_val=x_train, Y_val=y_train)
 

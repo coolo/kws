@@ -82,7 +82,7 @@ def create_model(model_settings):
     RNN_units = 3
     model.add(tf.keras.layers.Reshape(
         (first_conv_output_height, first_conv_output_width * first_filter_count)))
-    model.add(tf.keras.layers.LSTM(RNN_units, name='lstm_1', time_major=False, return_sequences=True))
+    model.add(tf.keras.layers.LSTM(RNN_units, name='lstm_1', return_sequences=True))
 
     model.add(tf.keras.layers.Flatten())
     first_fc_output_channels = 5
@@ -91,7 +91,7 @@ def create_model(model_settings):
     model.add(dense1)
 
     # Output layer
-    dense2 = tf.keras.layers.Dense(2, activation=tf.nn.softmax, name='dense2')
+    dense2 = tf.keras.layers.Dense(2, activation='softmax', name='dense2')
     model.add(dense2)
 
     return model

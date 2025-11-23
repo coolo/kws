@@ -12,23 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-r"""Runs a trained audio graph against a WAVE file and reports the results.
+r"""Run the LiteRT (TFLite) model against WAVE files and report predictions."""
 
-The model, labels and .wav file specified in the arguments will be loaded, and
-then the predictions from running the model against the audio data will be
-printed to the console. This is a useful script for sanity checking trained
-models, and as an example of how to use an audio model from Python.
-
-Here's an example of running it:
-
-python tensorflow/examples/speech_commands/label_wav.py \
---graph=/tmp/my_frozen_graph.pb \
---labels=/tmp/speech_commands_train/conv_labels.txt \
---wav=/tmp/speech_dataset/left/a5d485dc_nohash_0.wav
-
-"""
-
-import tensorflow as tf
 import argparse
 import numpy as np
 import glob
@@ -38,8 +23,21 @@ import struct
 from python_speech_features import logfbank
 import pathlib
 import hashlib
+from pathlib import Path
+
+try:  # pragma: no cover - runtime dependency
+    from ai_edge_litert.interpreter import Interpreter
+except ImportError as import_error:  # pragma: no cover
+    raise SystemExit(
+        "ai_edge_litert is required. Install it via pip install ai-edge-litert"
+    ) from import_error
 
 FLAGS = None
+SAMPLE_RATE = 16000
+DCT_COEFFICIENT_COUNT = 36
+WINDOW_SIZE_MS = 0.020
+WINDOW_STRIDE_MS = 0.010
+NFFT = 512
 
 class bcolors:
     HEADER = '\033[95m'
@@ -56,7 +54,7 @@ def calculate_one_sec_mels(wav_path, oneseconly=True, after=None, before=None, s
 
     assert(w.getnchannels() == 1)
     assert(w.getsampwidth() == 2)
-    assert(w.getframerate() == 16000)
+    assert(w.getframerate() == SAMPLE_RATE)
 
     frames = w.getnframes()
     if oneseconly:
@@ -83,20 +81,28 @@ def calculate_one_sec_mels(wav_path, oneseconly=True, after=None, before=None, s
     a = struct.unpack("%ih" % (frames * w.getnchannels()), astr)
     a = [float(val) / pow(2, 15) for val in a]
     wav_data = np.array(a, dtype=float)
-    nfft = 512
-    mels = logfbank(wav_data, w.getframerate(), lowfreq=20.0,
-                    nfilt=36, winlen=0.020, winstep=0.010, nfft=nfft,  preemph=0)
+    mels = logfbank(
+        wav_data,
+        w.getframerate(),
+        lowfreq=20.0,
+        nfilt=DCT_COEFFICIENT_COUNT,
+        winlen=WINDOW_SIZE_MS,
+        winstep=WINDOW_STRIDE_MS,
+        nfft=NFFT,
+        preemph=0,
+    )
     return np.float32(mels)
 
-def run_tflite(wav_glob):
-    # Feed the audio data as input to the graph.
-    #   predictions  will contain a two-dimensional array, where one
-    #   dimension represents the input image count, and the other has
-    #   predictions per class
+def create_interpreter(model_path: Path, num_threads: int):
+    interpreter = Interpreter(model_path=str(model_path), num_threads=num_threads)
+    interpreter.allocate_tensors()
+    return interpreter
 
-    model_path = os.path.join(pathlib.Path(__file__).parent.resolve(), 'model.tflite')
-    interpreter = tf.lite.Interpreter(model_path=model_path)
-    interpreter.allocate_tensors()  # Needed before execution!
+
+def run_litert(wav_patterns: list[str], model_path: Path, threads: int):
+    interpreter = create_interpreter(model_path, threads)
+    input_details = interpreter.get_input_details()[0]
+    output_details = interpreter.get_output_details()[0]
 
     np.set_printoptions(threshold=np.inf, linewidth=1000)
 
@@ -165,12 +171,12 @@ def run_tflite(wav_glob):
         diagram = (np.sign(diagram) * np.log(1.0 + mu * np.abs(diagram)) / np.log(1.0 + mu) + 1) / 2
         shortname=""
         for x in diagram:
-            min=10000
+            best_distance = 10000.0
             best_hit=None
             for letter, vec in named_vectors.items():
                 diff=difference_between(vec, x)
-                if diff < min:
-                    min = diff
+                if diff < best_distance:
+                    best_distance = diff
                     best_hit = letter
             shortname+=best_hit
         # ignore first character - it's too noisy
@@ -188,28 +194,36 @@ def run_tflite(wav_glob):
   
     def predict_wav(wav_path, before=None, after=None, save_as=None):
         mels = calculate_one_sec_mels(wav_path, before=before, after=after, save_as=save_as)
-
-        input_data = np.reshape(mels, (1, mels.shape[0], mels.shape[1]))
-
-        output = interpreter.get_output_details()[0]  # Model has single output.
-        input = interpreter.get_input_details()[0]  # Model has single input.
-        interpreter.reset_all_variables()
-        interpreter.set_tensor(input['index'], input_data)
+        tensor = np.expand_dims(mels, axis=0).astype(input_details['dtype'])
+        reset_fn = getattr(interpreter, "reset_all_variables", None)
+        if callable(reset_fn):
+            reset_fn()
+        interpreter.set_tensor(input_details['index'], tensor)
         interpreter.invoke()
+        scores = interpreter.get_tensor(output_details['index'])[0].astype(np.float32)
+        gut_idx = 1 if len(scores) > 1 else 0
+        gut_score = float(scores[gut_idx])
+        gut_percent = int(max(0.0, min(100.0, gut_score * 100.0)) + 0.5)
+        return mels, gut_percent
 
-        predictions = np.int8(interpreter.get_tensor(output["index"])[0] * 100 + 0.5)
-        return mels, predictions
+    resolved_wavs: list[str] = []
+    for pattern in wav_patterns:
+        matches = glob.glob(pattern)
+        if matches:
+            resolved_wavs.extend(matches)
+        else:
+            resolved_wavs.append(pattern)
 
-    for wav_path in sorted(glob.glob(wav_glob)):
-        mels, predictions = predict_wav(wav_path)
+    for wav_path in sorted(resolved_wavs):
+        mels, gut_percent = predict_wav(wav_path)
             
         if FLAGS.rename:
-            prefix = "%03d-" % predictions[1]
+            prefix = "%03d-" % gut_percent
             if FLAGS.move:
                 _, predictions_after = predict_wav(wav_path, after=astr)
                 _, predictions_before = predict_wav(wav_path, before=astr)
-                prefix += "%03d-" % predictions_before[1]
-                prefix += "%03d-" % predictions_after[1]
+                prefix += "%03d-" % predictions_before
+                prefix += "%03d-" % predictions_after
             sn = prefix + short_name(mels) + "-" + md5(mels) + ".wav"
             if FLAGS.output_moves:
                 predict_wav(wav_path, after=astr, save_as=sn)
@@ -221,84 +235,55 @@ def run_tflite(wav_glob):
             print(f"rename {wav_path} to {sn}")
             os.rename(wav_path, sn)
         else:
-            print(bcolors.OKGREEN if predictions[1] > predictions[0] else bcolors.FAIL,
-            predictions[1], wav_path, bcolors.ENDC)
+            color = bcolors.OKGREEN if gut_percent >= 50.0 else bcolors.FAIL
+            print(
+                f"{color}gut={gut_percent:6.2f}% | {wav_path}{bcolors.ENDC}"
+            )
 
     return 0
 
 
-def label_wav(wavs, graph):
-    """Loads the model and labels, and runs the inference to print predictions."""
-    if graph:
-        model = tf.keras.models.load_model('saved.model')
-        model.load_weights(graph)
-        # fixed batch size
-        model.input.set_shape((1,) + model.input.shape[1:])
-        model.summary()
-
-        data = np.load('all-waves.npz', mmap_mode='r')
-        dataset = tf.data.Dataset.from_tensor_slices(data['x'])
-
-        def representative_dataset():
-            for data in dataset.shuffle().batch(1).take(300):
-                yield [tf.dtypes.cast(data, tf.float32)]
-
-        converter = tf.lite.TFLiteConverter.from_keras_model(model)
-        converter.representative_dataset = representative_dataset
-        converter.optimizations = [tf.lite.Optimize.DEFAULT]
-        converter.target_spec.supported_types = [tf.float32]
-
-        tflite_model = converter.convert()
-        with open('model.tflite', 'wb') as f:
-            f.write(tflite_model)
-
-        model_path = os.path.join(pathlib.Path(__file__).parent.resolve(), 'model.tflite')
-        interpreter = tf.lite.Interpreter(model_path=model_path)
-        interpreter.allocate_tensors()  # Needed before execution!
-	
-        dataset = tf.data.Dataset.from_tensor_slices((data['x'], data['y']))
-        misses_lite = 0
-        misses_model = 0
-        count = 0
-        for element in dataset.take(1000):
-            mels, y = element
-            input_data = np.float32(np.reshape(mels, (1, mels.shape[0], mels.shape[1])))
-            output = interpreter.get_output_details()[0]  # Model has single output.
-            input = interpreter.get_input_details()[0]  # Model has single input.
-            interpreter.reset_all_variables()
-            interpreter.set_tensor(input['index'], input_data)
-            interpreter.invoke()
-
-            true_value = int(y.numpy()[1] * 256)
-            predictions_lite = int(interpreter.get_tensor(output["index"])[0][1] * 256 + 0.5)
-            predictions_model = int(model(input_data).numpy()[0][1] * 256 + 0.5)
-            print("true:", true_value, "lite:", bcolors.OKGREEN if predictions_lite == true_value else bcolors.FAIL, predictions_lite, bcolors.ENDC, "model:", predictions_model)
-            count += 1
-            if abs(true_value - predictions_lite) > 70:
-                misses_lite += 1
-            if abs(true_value - predictions_model) > 70:
-                misses_model += 1
-
-        print("Accuracy Model:", 100 - float(misses_model) / count, "Lite model:", 100 - float(misses_lite) / count)
-    for wav in wavs:
-        run_tflite(wav)
-
-
-def main(args):
-    """Entry point for script, converts flags to arguments."""
-    label_wav(args, FLAGS.graph)
+def main(options):
+    if not options.wav_files:
+        print("Error: No WAV files specified")
+        return 1
+    return run_litert(options.wav_files, Path(options.model), options.threads)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description='Run TFLite inference on WAV files for keyword spotting')
     parser.add_argument(
-        '--graph', type=str, default=None, help='Model to use for identification.')
-    parser.add_argument('--rename', dest='rename', action='store_true')
-    parser.add_argument('--move', dest='move', action='store_true', help='Check also with 0.1 before and after')
-    parser.add_argument('--output_moves', dest='output_moves', action='store_true', help='Output the -before and -after files')
-    parser.set_defaults(rename=False)
-    parser.set_defaults(move=False)
-    parser.set_defaults(output_moves=False)
+        'wav_files',
+        nargs='+',
+        help='WAV files to process (can use glob patterns)')
+    parser.add_argument(
+        '--rename',
+        dest='rename',
+        action='store_true',
+        help='Rename files based on prediction scores')
+    parser.add_argument(
+        '--move',
+        dest='move',
+        action='store_true',
+        help='Check also with 0.1s silence before and after')
+    parser.add_argument(
+        '--output_moves',
+        dest='output_moves',
+        action='store_true',
+        help='Output the -before and -after files')
+    parser.add_argument(
+        '--model',
+        default='model.tflite',
+        help='Path to LiteRT/TFLite model to run (default: model.tflite)')
+    parser.add_argument(
+        '--threads',
+        type=int,
+        default=2,
+        help='Number of CPU threads for LiteRT interpreter')
+    parser.set_defaults(rename=False, move=False, output_moves=False)
 
-    FLAGS, unparsed = parser.parse_known_args()
-    main(unparsed)
+    args = parser.parse_args()
+    FLAGS = args
+    
+    exit(main(args))
