@@ -227,7 +227,7 @@ def run_tflite(wav_glob):
     return 0
 
 
-def label_wav(wav, graph):
+def label_wav(wavs, graph):
     """Loads the model and labels, and runs the inference to print predictions."""
     if graph:
         model = tf.keras.models.load_model('saved.model')
@@ -280,18 +280,17 @@ def label_wav(wav, graph):
                 misses_model += 1
 
         print("Accuracy Model:", 100 - float(misses_model) / count, "Lite model:", 100 - float(misses_lite) / count)
-    run_tflite(wav)
+    for wav in wavs:
+        run_tflite(wav)
 
 
-def main(_):
+def main(args):
     """Entry point for script, converts flags to arguments."""
-    label_wav(FLAGS.wav, FLAGS.graph)
+    label_wav(args, FLAGS.graph)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--wav', type=str, default='', help='Audio file to be identified.')
     parser.add_argument(
         '--graph', type=str, default=None, help='Model to use for identification.')
     parser.add_argument('--rename', dest='rename', action='store_true')

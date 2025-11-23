@@ -69,6 +69,7 @@ def create_model(model_settings):
     conv1 = tf.keras.layers.Conv2D(first_filter_count, kernel_size=(first_filter_height, first_filter_width),
                                       strides=(first_filter_stride_y, first_filter_stride_x), padding='valid', activation='relu', name='conv1', kernel_regularizer=tf.keras.regularizers.l2(0.001))
     model.add(conv1)
+    model.add(tf.keras.layers.BatchNormalization())
 
     first_conv_output_width = int(math.floor(
         (input_frequency_size - first_filter_width + first_filter_stride_x) /
