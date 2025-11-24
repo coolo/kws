@@ -23,18 +23,41 @@ import subprocess
 import threading
 import time
 import sys
-try:
-    import tflite_runtime.interpreter as tflite
-except:
-    from tensorflow import lite as tflite
 
 import numpy as np
-import subprocess
 from python_speech_features import logfbank
 import audioop
 import alsaaudio
 
+try:  # pragma: no cover - runtime dependency
+    from ai_edge_litert.interpreter import Interpreter
+except ImportError as import_error:  # pragma: no cover
+    raise SystemExit(
+        "ai_edge_litert is required. Install it via pip install ai-edge-litert"
+    ) from import_error
+
 logger = logging.getLogger('audio')
+
+SAMPLE_RATE = 16000
+DCT_COEFFICIENT_COUNT = 36
+WINDOW_SIZE_MS = 0.020
+WINDOW_STRIDE_MS = 0.010
+NFFT = 512
+
+
+def _calculate_mels_from_pcm(pcm: np.ndarray) -> np.ndarray:
+    return np.float32(
+        logfbank(
+            pcm,
+            SAMPLE_RATE,
+            lowfreq=20.0,
+            nfilt=DCT_COEFFICIENT_COUNT,
+            winlen=WINDOW_SIZE_MS,
+            winstep=WINDOW_STRIDE_MS,
+            nfft=NFFT,
+            preemph=0,
+        )
+    )
 
 
 class Recorder(threading.Thread):
@@ -209,9 +232,8 @@ class RecognizePredictions(object):
 class RecognizeCommands(object):
     """A processor that identifies spoken commands from the stream."""
 
-    def __init__(self, graph, output_name, average_window_duration_ms,
-                 suppression_ms, minimum_count, sample_rate, sample_duration_ms):
-        self.output_name_ = output_name
+    def __init__(self, model_path, average_window_duration_ms,
+                 suppression_ms, minimum_count, sample_rate, sample_duration_ms, num_threads):
         self.average_window_duration_ms_ = average_window_duration_ms
         self.suppression_ms_ = suppression_ms
         self.last_time_ms = 0
@@ -225,10 +247,11 @@ class RecognizeCommands(object):
         self.recording_buffer_ = np.zeros(
             [self.recording_length_], dtype=np.float32)
         self.recording_offset_ = 0
-        self.interpreter = tflite.Interpreter(model_path='model.tflite')
+        self.interpreter = Interpreter(model_path=str(model_path), num_threads=num_threads)
         self.interpreter.allocate_tensors()
-        self.output_tensor = self.interpreter.get_output_details()[0]['index']
-        self.input_tensor = self.interpreter.get_input_details()[0]['index']
+        self.input_details = self.interpreter.get_input_details()[0]
+        self.output_details = self.interpreter.get_output_details()[0]
+        self.reset_fn = getattr(self.interpreter, "reset_all_variables", None)
 
     def add_data(self, data_bytes):
         """Process audio data."""
@@ -237,15 +260,17 @@ class RecognizeCommands(object):
         #t1 = time.time() * 1000
         input_data = np.frombuffer(data_bytes, dtype='i2')/pow(2, 15)
 
-        mels=np.float32(logfbank(input_data, 16000, lowfreq=20,nfilt=36,winlen=0.020,winstep=0.010,nfft=512, preemph=0))
-        self.interpreter.reset_all_variables()
-        self.interpreter.set_tensor(self.input_tensor, [mels])
+        mels = _calculate_mels_from_pcm(input_data)
+        tensor = np.expand_dims(mels, axis=0).astype(self.input_details['dtype'])
+        if callable(self.reset_fn):
+            self.reset_fn()
+        self.interpreter.set_tensor(self.input_details['index'], tensor)
         self.interpreter.invoke()
 
-        predictions = self.interpreter.get_tensor(self.output_tensor)[0]
+        predictions = self.interpreter.get_tensor(self.output_details['index'])[0].astype(np.float32)
         #print('model', time.time() * 1000 - t1, predictions, file=sys.stderr)
 
-        return predictions[1]
+        return float(predictions[1] if len(predictions) > 1 else predictions[0])
 
     def is_done(self):
         return False
@@ -278,14 +303,10 @@ def main():
     parser.add_argument(
         '-r', '--rate', type=int, default=48000, help='Sample rate in Hertz')
     parser.add_argument(
-        '--graph', type=str, default='', help='Model to use for identification.')
-    parser.add_argument(
-        '--labels', type=str, default='', help='Path to file containing labels.')
-    parser.add_argument(
-        '--output_name',
+        '--model',
         type=str,
-        default='labels_softmax:0',
-        help='Name of node outputting a prediction in the model.')
+        default='model.tflite',
+        help='LiteRT/TFLite model path (default: model.tflite).')
     parser.add_argument(
         '--average_window_duration_ms',
         type=int,
@@ -313,6 +334,11 @@ def main():
         type=int,
         default='1000',
         help='How much audio the recognition model looks at.')
+    parser.add_argument(
+        '--threads',
+        type=int,
+        default=2,
+        help='Number of CPU threads for the LiteRT interpreter.')
     args = parser.parse_args()
 
     recorder = Recorder(
@@ -323,9 +349,14 @@ def main():
     fetcher = Fetcher(recorder, args.detection_threshold)
 
     recognizer = RecognizeCommands(
-        args.graph, args.output_name, args.average_window_duration_ms,
-        args.suppression_ms, args.minimum_count,
-        args.sample_rate, args.sample_duration_ms)
+        args.model,
+        args.average_window_duration_ms,
+        args.suppression_ms,
+        args.minimum_count,
+        args.sample_rate,
+        args.sample_duration_ms,
+        args.threads,
+    )
 
     with fetcher, recorder, recognizer:
         fetcher.set_processor(recognizer)
