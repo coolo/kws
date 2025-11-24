@@ -32,6 +32,18 @@ FLAGS = None
 SAMPLE_RATE = 16000
 
 
+def asymmetric_bce(alpha: float = 3.0, eps: float = 1e-7):
+    """Binary cross-entropy variant that penalizes false positives more."""
+
+    def loss(y_true, y_pred):
+        clipped = tf.clip_by_value(y_pred, eps, 1.0 - eps)
+        pos_term = y_true * tf.math.log(clipped)
+        neg_term = (1.0 - y_true) * tf.math.log(1.0 - clipped)
+        return -tf.reduce_mean(pos_term + alpha * neg_term)
+
+    return loss
+
+
 class ConfusionMatrixDisplay(tf.keras.callbacks.Callback):
     def __init__(self, X_val, Y_val):
         self.X_val = X_val
@@ -56,16 +68,19 @@ def main(_):
     model_settings = models.prepare_model_settings(FLAGS.dct_coefficient_count)
 
     if os.path.exists('saved.model.keras'):
-        model = tf.keras.models.load_model('saved.model.keras')
+        model = tf.keras.models.load_model('saved.model.keras', compile=False)
     else:
         model = models.create_model(model_settings)
         model.summary()
 
-        # Instantiate an optimizer.
-        optimizer = tf.keras.optimizers.Adam(learning_rate=0.00007)
-        model.compile(loss='binary_crossentropy',
-                      optimizer=optimizer, metrics=["accuracy"])
         model.save('saved.model.keras')
+
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.00007)
+    model.compile(
+        loss=asymmetric_bce(alpha=3.0),
+        optimizer=optimizer,
+        metrics=["accuracy"],
+    )
 
     earlystop = tf.keras.callbacks.EarlyStopping(
         monitor='loss', patience=FLAGS.epochs, restore_best_weights=True, min_delta=0.0001)
