@@ -193,7 +193,7 @@ class Fetcher(threading.Thread):
             if len(self.last_confidences) > 5:
                 self.last_confidences.pop(0)
 
-            if rate > 0:
+            if rate > 1000:
                 print('Confidence {} {}'.format(time.time(),
                       self.last_confidences), file=sys.stderr)
                 sys.stderr.flush()

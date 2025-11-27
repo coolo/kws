@@ -57,7 +57,7 @@ def create_model(model_settings):
 
     # CNN part
     first_filter_count = 96
-    first_filter_height = 8
+    first_filter_height = 6
     first_filter_width = 2
     first_filter_stride_y = 3
     first_filter_stride_x = 2
