@@ -67,13 +67,10 @@ def main(_):
 
     model_settings = models.prepare_model_settings(FLAGS.dct_coefficient_count)
 
-    if os.path.exists('saved.model.keras'):
-        model = tf.keras.models.load_model('saved.model.keras', compile=False)
-    else:
-        model = models.create_model(model_settings)
-        model.summary()
+    model = models.create_model(model_settings)
+    model.summary()
 
-        model.save('saved.model.keras')
+    model.save('saved.model.keras')
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.00007)
     model.compile(

@@ -188,19 +188,18 @@ class Fetcher(threading.Thread):
                 continue
 
             current_time_ms = time.time() * 1000
-            rate = int(self.processor.add_data(chunk) * 25600 + 0.5)
+            rate = int(self.processor.add_data(chunk) * 256 + 0.5)
             self.last_confidences.append(rate)
             if len(self.last_confidences) > 5:
                 self.last_confidences.pop(0)
 
-            if rate > 1000:
+            if rate > 30:
                 print('Confidence {} {}'.format(time.time(),
                       self.last_confidences), file=sys.stderr)
                 sys.stderr.flush()
                 with open('out-%05d-%.2f.raw' % (rate, time.time()), 'wb') as f:
                     f.write(chunk)
 
-            rate = rate / 100
             time_since_last_top = current_time_ms - previous_top_label_time_
 
             if rate > 3:

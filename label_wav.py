@@ -224,6 +224,10 @@ def run_litert(wav_patterns: list[str], model_path: Path, threads: int):
                 _, predictions_before = predict_wav(wav_path, before=astr)
                 prefix += "%03d-" % predictions_before
                 prefix += "%03d-" % predictions_after
+                if gut_percent < FLAGS.out_limit and predictions_before < FLAGS.out_limit and predictions_after < FLAGS.out_limit:
+                    prefix = "out-" + prefix
+                if gut_percent < 30 and (predictions_before > 30 or predictions_after > 30):
+                    prefix = "weird-" + prefix
             sn = prefix + short_name(mels) + "-" + md5(mels) + ".wav"
             if FLAGS.output_moves:
                 predict_wav(wav_path, after=astr, save_as=sn)
@@ -276,6 +280,11 @@ if __name__ == '__main__':
         '--model',
         default='model.tflite',
         help='Path to LiteRT/TFLite model to run (default: model.tflite)')
+    parser.add_argument(
+        '--out-limit',
+        type=int,
+        dest='out_limit',
+        default=0)
     parser.add_argument(
         '--threads',
         type=int,
